@@ -1,17 +1,22 @@
+import os
 import shutil
 import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from app.schemas.ticket import TicketReviewOutcome
 
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 def apply_unified_diff(patch_text: str) -> TicketReviewOutcome:
-    git_path = shutil.which("git")
+    git_path = _resolve_git_executable()
     if not git_path:
         return TicketReviewOutcome(
             applied=False,
@@ -55,3 +60,10 @@ def apply_unified_diff(patch_text: str) -> TicketReviewOutcome:
         message=output or "git apply failed.",
         applied_at=datetime.now(timezone.utc),
     )
+
+
+def _resolve_git_executable() -> str | None:
+    configured = os.getenv("GIT_EXECUTABLE")
+    if configured and Path(configured).exists():
+        return configured
+    return shutil.which("git")

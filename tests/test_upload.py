@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.main import app
+from app.services.patch_service import apply_unified_diff
 from app.services.review_token_service import build_review_token
 from app.schemas.ticket import TicketAutomationResult, TicketResolution, TicketReviewOutcome
 
@@ -357,6 +358,23 @@ class UploadApiTestCase(unittest.TestCase):
                 response = self.client.get("/ticket/ticket401/review?token=bad-token")
 
         self.assertEqual(response.status_code, 403)
+
+    def test_patch_service_uses_configured_git_executable(self) -> None:
+        with patch.dict("os.environ", {"GIT_EXECUTABLE": r"C:\Program Files\Git\cmd\git.exe"}), patch(
+            "app.services.patch_service.Path.exists",
+            return_value=True,
+        ), patch(
+            "app.services.patch_service.subprocess.run",
+        ) as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = ""
+            mock_run.return_value.stderr = ""
+
+            result = apply_unified_diff("--- a/README.md\n+++ b/README.md\n")
+
+        self.assertTrue(result.applied)
+        command = mock_run.call_args.args[0]
+        self.assertEqual(command[0], r"C:\Program Files\Git\cmd\git.exe")
 
     @staticmethod
     def _build_excel_file() -> BytesIO:
