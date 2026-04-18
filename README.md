@@ -1,55 +1,80 @@
-# Excel To PowerPoint API
+# DeckCreator Full Stack App
 
-Clean modular FastAPI project structure for an app that:
+Production-ready full-stack structure with:
 
-- accepts Excel files
-- analyzes data
-- generates PowerPoint presentations
-- exposes a simple API
+- FastAPI backend
+- Next.js frontend
+- Excel to PowerPoint generation
+- Ticketing, approval, email, and git automation
 
 ## Folders
 
 ```text
 .
 |-- app/
-|   |-- api/
-|   |   `-- routes/
-|   |       |-- health.py
-|   |       `-- uploads.py
-|   |-- core/
-|   |   `-- config.py
-|   |-- schemas/
-|   |   `-- upload.py
-|   |-- services/
-|   |   |-- analysis_service.py
-|   |   |-- excel_service.py
-|   |   |-- ppt_service.py
-|   |   |-- presentation_service.py
-|   |   `-- upload_service.py
-|   |-- utils/
-|   |   `-- file_manager.py
-|   `-- main.py
+|   `-- ...
+|-- backend/
+|   `-- app/
+|       |-- api/
+|       |   |-- approval.py
+|       |   |-- ticket.py
+|       |   `-- upload.py
+|       |-- core/
+|       |   `-- config.py
+|       |-- models/
+|       |-- services/
+|       |   |-- ai_service.py
+|       |   |-- email_service.py
+|       |   |-- excel_service.py
+|       |   |-- git_service.py
+|       |   `-- ppt_service.py
+|       `-- main.py
+|-- frontend/
+|   |-- app/
+|   |   |-- status/
+|   |   |   `-- page.tsx
+|   |   |-- tickets/
+|   |   |   `-- page.tsx
+|   |   |-- upload/
+|   |   |   `-- page.tsx
+|   |   |-- globals.css
+|   |   |-- layout.tsx
+|   |   `-- page.tsx
+|   |-- lib/
+|   |   `-- api.ts
+|   |-- next.config.ts
+|   |-- package.json
+|   `-- tsconfig.json
 |-- data/
-|   |-- output/
-|   `-- uploads/
-|       |-- excel/
-|       `-- templates/
+|-- templates/
+|-- static/
+|-- tests/
 |-- main.py
 |-- README.md
 `-- requirements.txt
 ```
 
-## Main files
+## Local Development
 
-- `app/main.py`: FastAPI application entrypoint.
-- `app/api/routes/uploads.py`: `POST /upload` endpoint.
-- `app/services/upload_service.py`: validates files and saves them locally.
-- `app/services/excel_service.py`: Excel loading/preview utilities for later analysis.
-- `app/services/analysis_service.py`: placeholder analysis workflow module.
-- `app/services/presentation_service.py`: placeholder PowerPoint generation workflow module.
-- `app/services/ppt_service.py`: PowerPoint template loader.
-- `app/core/config.py`: central filesystem paths.
-- `app/utils/file_manager.py`: safe local file persistence helper.
+Backend:
+
+```powershell
+uvicorn app.main:app --reload --port 8000
+```
+
+Frontend:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend environment:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
 
 ## Dependencies
 
@@ -95,11 +120,13 @@ Behavior:
 - saves the output under `data/output/`
 - returns the generated `.pptx` as a downloadable file
 
-## Run
+The backend keeps the existing routes and also exposes:
 
-```powershell
-uvicorn app.main:app --reload
-```
+- `POST /api/upload`
+- `POST /api/ticket`
+- `GET /api/ticket/{ticket_id}`
+- `GET /api/approve`
+- `GET /api/reject`
 
 ## Deploy
 
