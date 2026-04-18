@@ -203,7 +203,7 @@ def _try_generate_literal_text_resolution(ticket_description: str) -> TicketReso
     if not any(keyword in normalized for keyword in ("remove", "delete", "hide")):
         return None
 
-    match = re.search(r'"([^"]+)"', ticket_description)
+    match = re.search(r'["\']([^"\']+)["\']', ticket_description)
     if not match:
         return None
 
@@ -215,15 +215,16 @@ def _try_generate_literal_text_resolution(ticket_description: str) -> TicketReso
         original = _read_file_preserving_newlines(file_path)
         if target_text not in original:
             continue
-        updated = original.replace(target_text, "", 1)
+        updated = _remove_literal_occurrences(original, target_text)
         if updated == original:
             continue
         candidates.append((file_path, original, updated))
 
-    if len(candidates) != 1:
+    candidate = _select_literal_candidate(candidates, ticket_description)
+    if candidate is None:
         return None
 
-    file_path, original, updated = candidates[0]
+    file_path, original, updated = candidate
     relative_path = file_path.relative_to(BASE_DIR).as_posix()
     patch = "".join(
         unified_diff(
@@ -252,3 +253,32 @@ def _try_generate_literal_text_resolution(ticket_description: str) -> TicketReso
 def _read_file_preserving_newlines(file_path: Path) -> str:
     with file_path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
         return handle.read()
+
+
+def _select_literal_candidate(
+    candidates: list[tuple[Path, str, str]],
+    ticket_description: str,
+) -> tuple[Path, str, str] | None:
+    if len(candidates) == 1:
+        return candidates[0]
+
+    normalized = ticket_description.lower()
+    ui_keywords = ("ui", "page", "screen", "section", "block", "button", "text", "label")
+    if any(keyword in normalized for keyword in ui_keywords):
+        template_candidates = [candidate for candidate in candidates if "templates" in candidate[0].parts]
+        if len(template_candidates) == 1:
+            return template_candidates[0]
+
+    return None
+
+
+def _remove_literal_occurrences(source_text: str, target_text: str) -> str:
+    updated = source_text
+    patterns = [
+        rf",\s*`?\.?{re.escape(target_text)}`?",
+        rf"`?\.?{re.escape(target_text)}`?\s*,\s*",
+        rf"`?{re.escape(target_text)}`?",
+    ]
+    for pattern in patterns:
+        updated = re.sub(pattern, "", updated)
+    return updated

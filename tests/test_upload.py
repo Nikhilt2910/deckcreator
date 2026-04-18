@@ -430,6 +430,18 @@ class UploadApiTestCase(unittest.TestCase):
         self.assertIn('-                <h2>Start from a proven deck structure</h2>', resolution.patch)
         self.assertIn('+                <h2></h2>', resolution.patch)
 
+    def test_literal_text_resolution_supports_single_quoted_text(self) -> None:
+        resolution = _try_generate_literal_text_resolution(
+            "please remove 'potx' under the Inputs block"
+        )
+
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution.files, ["templates/index.html"])
+        self.assertIn("-                <li>Reference file: `.pptx`, `.potx`, `.pdf`</li>", resolution.patch)
+        self.assertIn("+                <li>Reference file: `.pptx`, `.pdf`</li>", resolution.patch)
+        self.assertIn('-                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.potx,.pdf" required>', resolution.patch)
+        self.assertIn('+                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.pdf" required>', resolution.patch)
+
     @staticmethod
     def _build_excel_file() -> BytesIO:
         buffer = BytesIO()
