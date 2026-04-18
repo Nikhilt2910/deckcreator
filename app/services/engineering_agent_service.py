@@ -7,6 +7,7 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from app.schemas.ticket import TicketResolution
+from app.services.patch_service import validate_unified_diff
 
 
 load_dotenv()
@@ -46,7 +47,10 @@ Rules:
 - Be specific to the provided codebase.
 - Prefer minimal, coherent changes over broad rewrites.
 - Reference real file paths from the repository.
-- The patch must be unified diff style and plausible for the provided files.
+- The patch must be a real unified diff that `git apply` can apply directly.
+- Do not use placeholder hunks such as `@@ ... @@`, `existing code here`, or ellipses.
+- Only edit lines that exist in the provided file contents.
+- Include exact hunk headers and exact surrounding context from the provided files.
 - If the ticket is ambiguous, state the assumption in the explanation and still provide the best patch you can.
 """
 
@@ -65,32 +69,46 @@ def generate_ticket_resolution(ticket_description: str) -> TicketResolution:
     client = OpenAI(api_key=api_key)
     model = os.getenv("OPENAI_ENGINEERING_MODEL", "gpt-4.1")
     codebase_snapshot = _build_codebase_snapshot()
+    validation_error = ""
+    previous_files: list[str] = []
 
-    response = client.responses.parse(
-        model=model,
-        input=[
-            {"role": "system", "content": ENGINEERING_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    f"Ticket description:\n{ticket_description}\n\n"
-                    f"Current codebase snapshot:\n{codebase_snapshot}"
-                ),
-            },
-        ],
-        text_format=EngineeringResolutionPayload,
-    )
+    for attempt in range(2):
+        response = client.responses.parse(
+            model=model,
+            input=[
+                {"role": "system", "content": ENGINEERING_PROMPT},
+                {
+                    "role": "user",
+                    "content": _build_generation_prompt(
+                        ticket_description=ticket_description,
+                        codebase_snapshot=codebase_snapshot,
+                        validation_error=validation_error,
+                    ),
+                },
+            ],
+            text_format=EngineeringResolutionPayload,
+        )
 
-    if response.output_parsed is None:
-        raise ValueError("OpenAI returned no engineering resolution.")
+        if response.output_parsed is None:
+            raise ValueError("OpenAI returned no engineering resolution.")
 
-    payload = response.output_parsed
-    return TicketResolution(
-        files=payload.files,
-        patch=payload.patch,
-        explanation=payload.explanation,
-        generated_at=datetime.now(timezone.utc),
-    )
+        payload = response.output_parsed
+        is_valid, message = validate_unified_diff(payload.patch)
+        if is_valid:
+            return TicketResolution(
+                files=payload.files,
+                patch=payload.patch,
+                explanation=payload.explanation,
+                generated_at=datetime.now(timezone.utc),
+            )
+
+        validation_error = message
+        previous_files = payload.files
+        targeted_snapshot = _build_targeted_snapshot(previous_files)
+        if targeted_snapshot:
+            codebase_snapshot = targeted_snapshot
+
+    raise ValueError(f"OpenAI returned a non-applyable engineering resolution: {validation_error}")
 
 
 def _build_codebase_snapshot() -> str:
@@ -113,6 +131,51 @@ def _build_codebase_snapshot() -> str:
     if not sections:
         return "Codebase snapshot unavailable."
     return "\n\n".join(sections)
+
+
+def _build_targeted_snapshot(files: list[str]) -> str:
+    sections: list[str] = []
+    total_chars = 0
+
+    for relative_name in files:
+        normalized = relative_name.replace("\\", "/").strip("/")
+        file_path = BASE_DIR / normalized
+        if not file_path.exists() or not file_path.is_file():
+            continue
+        if file_path.suffix.lower() not in ALLOWED_SUFFIXES:
+            continue
+        content = file_path.read_text(encoding="utf-8", errors="ignore")
+        if not content.strip():
+            continue
+        excerpt = content[:MAX_FILE_CHARS]
+        section = f"FILE: {normalized}\n```\n{excerpt}\n```"
+        projected_size = total_chars + len(section)
+        if projected_size > MAX_TOTAL_CHARS:
+            break
+        sections.append(section)
+        total_chars = projected_size
+
+    return "\n\n".join(sections)
+
+
+def _build_generation_prompt(
+    ticket_description: str,
+    codebase_snapshot: str,
+    validation_error: str,
+) -> str:
+    retry_note = ""
+    if validation_error:
+        retry_note = (
+            "The previous patch was invalid and failed automated validation.\n"
+            f"Validation error:\n{validation_error}\n\n"
+            "Regenerate the patch with exact file context and real applyable hunks only.\n\n"
+        )
+    return (
+        f"Ticket description:\n{ticket_description}\n\n"
+        f"{retry_note}"
+        "Current codebase snapshot:\n"
+        f"{codebase_snapshot}"
+    )
 
 
 def _iter_codebase_files() -> list[Path]:

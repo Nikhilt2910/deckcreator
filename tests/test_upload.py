@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.main import app
-from app.services.patch_service import apply_unified_diff
+from app.services.patch_service import apply_unified_diff, validate_unified_diff
 from app.services.review_token_service import build_review_token
 from app.schemas.ticket import TicketAutomationResult, TicketResolution, TicketReviewOutcome
 
@@ -383,6 +383,14 @@ class UploadApiTestCase(unittest.TestCase):
 
         self.assertFalse(result.applied)
         self.assertIn("placeholder diff", result.message)
+
+    def test_validate_unified_diff_rejects_placeholder_patch(self) -> None:
+        is_valid, message = validate_unified_diff(
+            "--- a/templates/index.html\n+++ b/templates/index.html\n@@ ... @@\n-foo\n+bar\n"
+        )
+
+        self.assertFalse(is_valid)
+        self.assertIn("placeholder diff", message)
 
     @staticmethod
     def _build_excel_file() -> BytesIO:
