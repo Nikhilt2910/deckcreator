@@ -203,11 +203,9 @@ def _try_generate_literal_text_resolution(ticket_description: str) -> TicketReso
     if not any(keyword in normalized for keyword in ("remove", "delete", "hide")):
         return None
 
-    match = re.search(r'["\']([^"\']+)["\']', ticket_description)
-    if not match:
+    target_text = _extract_literal_target(ticket_description)
+    if not target_text:
         return None
-
-    target_text = match.group(1)
     candidates: list[tuple[Path, str, str]] = []
     for file_path in _iter_codebase_files():
         if "tests" in file_path.parts:
@@ -282,3 +280,24 @@ def _remove_literal_occurrences(source_text: str, target_text: str) -> str:
     for pattern in patterns:
         updated = re.sub(pattern, "", updated)
     return updated
+
+
+def _extract_literal_target(ticket_description: str) -> str | None:
+    quoted_match = re.search(r'["\']([^"\']+)["\']', ticket_description)
+    if quoted_match:
+        return quoted_match.group(1).strip()
+
+    unquoted_patterns = [
+        r"\bremove\s+([a-zA-Z0-9._-]+)\s+text\b",
+        r"\bremove\s+([a-zA-Z0-9._-]+)\b",
+        r"\bdelete\s+([a-zA-Z0-9._-]+)\s+text\b",
+        r"\bdelete\s+([a-zA-Z0-9._-]+)\b",
+        r"\bhide\s+([a-zA-Z0-9._-]+)\s+text\b",
+        r"\bhide\s+([a-zA-Z0-9._-]+)\b",
+    ]
+    normalized = ticket_description.strip()
+    for pattern in unquoted_patterns:
+        match = re.search(pattern, normalized, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).strip(" ,.:;")
+    return None
