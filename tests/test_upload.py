@@ -432,24 +432,43 @@ class UploadApiTestCase(unittest.TestCase):
 
     def test_literal_text_resolution_supports_single_quoted_text(self) -> None:
         resolution = _try_generate_literal_text_resolution(
-            "please remove 'potx' under the Inputs block"
+            "please remove 'pdf' under the Inputs block"
         )
 
         self.assertIsNotNone(resolution)
         self.assertEqual(resolution.files, ["templates/index.html"])
-        self.assertIn("-                <li>Reference file: `.pptx`, `.potx`, `.pdf`</li>", resolution.patch)
-        self.assertIn("+                <li>Reference file: `.pptx`, `.pdf`</li>", resolution.patch)
-        self.assertIn('-                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.potx,.pdf" required>', resolution.patch)
-        self.assertIn('+                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.pdf" required>', resolution.patch)
+        self.assertIn("-                <li>Reference file: `.pptx`, `.pdf`</li>", resolution.patch)
+        self.assertIn("+                <li>Reference file: `.pptx`</li>", resolution.patch)
+        self.assertIn('-                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.pdf" required>', resolution.patch)
+        self.assertIn('+                <input id="reference_file" name="reference_file" type="file" accept=".pptx" required>', resolution.patch)
 
     def test_literal_text_resolution_supports_unquoted_text(self) -> None:
         resolution = _try_generate_literal_text_resolution(
-            "please remove potx text under inputs section"
+            "please remove pdf text under inputs section"
         )
 
         self.assertIsNotNone(resolution)
         self.assertEqual(resolution.files, ["templates/index.html"])
-        self.assertIn("-                <li>Reference file: `.pptx`, `.potx`, `.pdf`</li>", resolution.patch)
+        self.assertIn("-                <li>Reference file: `.pptx`, `.pdf`</li>", resolution.patch)
+
+    def test_literal_text_resolution_supports_addition_with_single_quotes(self) -> None:
+        resolution = _try_generate_literal_text_resolution(
+            "please also mention and add 'potx' files under inputs for reference file section"
+        )
+
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution.files, ["templates/index.html"])
+        self.assertIn("+                <li>Reference file: `.pptx`, `.potx`, `.pdf`</li>", resolution.patch)
+        self.assertIn('+                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.potx,.pdf" required>', resolution.patch)
+
+    def test_literal_text_resolution_supports_addition_without_quotes(self) -> None:
+        resolution = _try_generate_literal_text_resolution(
+            "please add potx files under inputs for reference file section"
+        )
+
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution.files, ["templates/index.html"])
+        self.assertIn(".potx", resolution.patch)
 
     @staticmethod
     def _build_excel_file() -> BytesIO:

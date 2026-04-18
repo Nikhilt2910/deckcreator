@@ -200,6 +200,10 @@ def _iter_codebase_files() -> list[Path]:
 
 def _try_generate_literal_text_resolution(ticket_description: str) -> TicketResolution | None:
     normalized = ticket_description.lower()
+    additive_resolution = _try_generate_literal_addition_resolution(ticket_description)
+    if additive_resolution is not None:
+        return additive_resolution
+
     if not any(keyword in normalized for keyword in ("remove", "delete", "hide")):
         return None
 
@@ -248,6 +252,21 @@ def _try_generate_literal_text_resolution(ticket_description: str) -> TicketReso
     )
 
 
+def _try_generate_literal_addition_resolution(ticket_description: str) -> TicketResolution | None:
+    normalized = ticket_description.lower()
+    if not any(keyword in normalized for keyword in ("add", "include", "mention", "show")):
+        return None
+
+    target_text = _extract_literal_target(ticket_description)
+    if not target_text:
+        return None
+
+    if "inputs" in normalized and "reference file" in normalized:
+        return _try_generate_reference_file_addition_resolution(target_text)
+
+    return None
+
+
 def _read_file_preserving_newlines(file_path: Path) -> str:
     with file_path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
         return handle.read()
@@ -282,12 +301,68 @@ def _remove_literal_occurrences(source_text: str, target_text: str) -> str:
     return updated
 
 
+def _try_generate_reference_file_addition_resolution(target_text: str) -> TicketResolution | None:
+    file_path = BASE_DIR / "templates" / "index.html"
+    if not file_path.exists():
+        return None
+
+    original = _read_file_preserving_newlines(file_path)
+    updated = original
+    display_token = f"`.{target_text.lstrip('.').lower()}`"
+    accept_token = f".{target_text.lstrip('.').lower()}"
+
+    visible_pattern = "Reference file: `.pptx`, `.pdf`"
+    if visible_pattern in updated and display_token not in updated:
+        updated = updated.replace(
+            visible_pattern,
+            f"Reference file: `.pptx`, {display_token}, `.pdf`",
+            1,
+        )
+
+    accept_pattern = 'accept=".pptx,.pdf"'
+    if accept_pattern in updated:
+        updated = updated.replace(
+            accept_pattern,
+            f'accept=".pptx,{accept_token},.pdf"',
+            1,
+        )
+
+    if updated == original:
+        return None
+
+    relative_path = file_path.relative_to(BASE_DIR).as_posix()
+    patch = "".join(
+        unified_diff(
+            original.splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile=f"a/{relative_path}",
+            tofile=f"b/{relative_path}",
+        )
+    )
+    is_valid, _ = validate_unified_diff(patch)
+    if not is_valid:
+        return None
+
+    return TicketResolution(
+        files=[relative_path],
+        patch=patch,
+        explanation=(
+            f'The ticket requests adding "{target_text}" back to the Reference File options in the Inputs block. '
+            f'The resolver updates both the visible text and the file input accept list in `{relative_path}`.'
+        ),
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
 def _extract_literal_target(ticket_description: str) -> str | None:
     quoted_match = re.search(r'["\']([^"\']+)["\']', ticket_description)
     if quoted_match:
         return quoted_match.group(1).strip()
 
     unquoted_patterns = [
+        r"\b(?:add|include|mention|show)\s+([a-zA-Z0-9._-]+)\s+files?\b",
+        r"\b(?:add|include|mention|show)\s+([a-zA-Z0-9._-]+)\s+text\b",
+        r"\b(?:add|include|mention|show)\s+([a-zA-Z0-9._-]+)\b",
         r"\bremove\s+([a-zA-Z0-9._-]+)\s+text\b",
         r"\bremove\s+([a-zA-Z0-9._-]+)\b",
         r"\bdelete\s+([a-zA-Z0-9._-]+)\s+text\b",
