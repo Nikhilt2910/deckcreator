@@ -31,6 +31,13 @@ def apply_unified_diff(patch_text: str) -> TicketReviewOutcome:
             applied_at=datetime.now(timezone.utc),
         )
 
+    if _looks_like_placeholder_patch(patch_text):
+        return TicketReviewOutcome(
+            applied=False,
+            message="The generated patch was only a placeholder diff and could not be applied automatically.",
+            applied_at=datetime.now(timezone.utc),
+        )
+
     with tempfile.NamedTemporaryFile("w", suffix=".diff", delete=False, encoding="utf-8") as handle:
         handle.write(patch_text)
         patch_path = Path(handle.name)
@@ -67,3 +74,8 @@ def _resolve_git_executable() -> str | None:
     if configured and Path(configured).exists():
         return configured
     return shutil.which("git")
+
+
+def _looks_like_placeholder_patch(patch_text: str) -> bool:
+    stripped = patch_text.strip()
+    return "@@ ... @@" in stripped or "@@ ...@@" in stripped

@@ -376,6 +376,14 @@ class UploadApiTestCase(unittest.TestCase):
         command = mock_run.call_args.args[0]
         self.assertEqual(command[0], r"C:\Program Files\Git\cmd\git.exe")
 
+    def test_patch_service_rejects_placeholder_patch(self) -> None:
+        result = apply_unified_diff(
+            "--- a/templates/index.html\n+++ b/templates/index.html\n@@ ... @@\n-foo\n+bar\n"
+        )
+
+        self.assertFalse(result.applied)
+        self.assertIn("placeholder diff", result.message)
+
     @staticmethod
     def _build_excel_file() -> BytesIO:
         buffer = BytesIO()
