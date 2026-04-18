@@ -226,6 +226,33 @@ class UploadApiTestCase(unittest.TestCase):
             self.assertEqual(len(stored_payload), 1)
             self.assertEqual(stored_payload[0]["description"], payload["description"])
 
+    def test_ticket_endpoint_skips_email_when_no_valid_resolution_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tickets_path = Path(temp_dir) / "tickets.json"
+            with patch("app.services.ticket_service.TICKETS_FILE", tickets_path), patch(
+                "app.services.ticket_service._create_jira_issue",
+                return_value=None,
+            ), patch(
+                "app.services.ticket_service.generate_ticket_resolution",
+                side_effect=ValueError("non-applyable patch"),
+            ), patch(
+                "app.services.ticket_service.send_ticket_review_email",
+            ) as mock_email:
+                response = self.client.post(
+                    "/ticket",
+                    json={
+                        "type": "bug",
+                        "description": "Remove a small piece of text from the UI.",
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIsNone(payload["resolution"])
+        self.assertFalse(payload["email_sent"])
+        self.assertIn("No valid resolution", payload["email_error"])
+        mock_email.assert_not_called()
+
     def test_ticket_resolution_regeneration_updates_existing_ticket(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             tickets_path = Path(temp_dir) / "tickets.json"

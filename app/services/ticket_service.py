@@ -36,7 +36,7 @@ async def create_ticket(payload: TicketCreate) -> TicketResponse:
         developer_email=DEFAULT_DEVELOPER_EMAIL,
         review_url=review_url,
     )
-    email_sent, email_error = send_ticket_review_email(ticket)
+    email_sent, email_error = _maybe_send_review_email(ticket)
     ticket.email_sent = email_sent
     ticket.email_error = email_error
     _persist_ticket(ticket)
@@ -97,6 +97,12 @@ def _safe_generate_resolution(ticket_description: str) -> TicketResolution | Non
         return generate_ticket_resolution(ticket_description)
     except Exception:
         return None
+
+
+def _maybe_send_review_email(ticket: TicketResponse) -> tuple[bool, str | None]:
+    if ticket.resolution is None:
+        return False, "No valid resolution was generated, so no developer approval email was sent."
+    return send_ticket_review_email(ticket)
 
 
 def _apply_resolution(resolution: TicketResolution | None) -> TicketReviewOutcome:
