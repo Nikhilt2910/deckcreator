@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: deckcreator
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: APP_BASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: JIRA_BASE_URL
+        sync: false
+      - key: JIRA_EMAIL
+        sync: false
+      - key: JIRA_API_TOKEN
+        sync: false
+      - key: JIRA_PROJECT_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: GITHUB_REPO_URL
+        sync: false
+      - key: GIT_EXECUTABLE
+        value: /usr/bin/git

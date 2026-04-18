@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.venv
+__pycache__
+*.pyc
+.env
+generated
+data/output/*.pptx
+data/uploads/excel/*
+!data/uploads/excel/.gitkeep
+data/uploads/templates/*
+!data/uploads/templates/.gitkeep
+data/tickets.json
+tests/__pycache__
