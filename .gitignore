@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.idea/
+generated/
+data/tickets.json
+data/output/*.pptx
+data/uploads/excel/*.xlsx
+data/uploads/excel/*.xls
+data/uploads/excel/*.xlsm
+data/uploads/templates/*.pptx
+data/uploads/templates/*.potx
+data/uploads/templates/*.pdf
+data/output/*.pptx

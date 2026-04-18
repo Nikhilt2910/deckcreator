@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Review</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="review-body">
+<div class="mesh-grid" aria-hidden="true"></div>
+<div class="ambient ambient-one"></div>
+<div class="ambient ambient-two"></div>
+
+<main class="page review-page">
+    <section class="review-shell reveal is-visible">
+        <div class="review-header">
+            <div>
+                <p class="panel-kicker">Developer Review</p>
+                <h1>Ticket {{ ticket.id }}</h1>
+                <p class="lead review-lead">{{ ticket.description }}</p>
+            </div>
+            <div class="review-meta">
+                <span class="review-chip">{{ ticket.type }}</span>
+                <span class="review-chip">{{ ticket.status }}</span>
+                {% if ticket.jira_issue_key %}
+                <span class="review-chip">{{ ticket.jira_issue_key }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <section class="review-grid">
+            <article class="review-card">
+                <p class="panel-kicker">Proposed Files</p>
+                <ul class="review-list">
+                    {% if ticket.resolution and ticket.resolution.files %}
+                    {% for file_path in ticket.resolution.files %}
+                    <li><code>{{ file_path }}</code></li>
+                    {% endfor %}
+                    {% else %}
+                    <li>No files suggested.</li>
+                    {% endif %}
+                </ul>
+            </article>
+
+            <article class="review-card">
+                <p class="panel-kicker">Explanation</p>
+                <p class="review-text">{{ ticket.resolution.explanation if ticket.resolution else "No explanation generated." }}</p>
+            </article>
+        </section>
+
+        <article class="review-card review-card-wide">
+            <p class="panel-kicker">Patch</p>
+            <pre class="review-code">{{ ticket.resolution.patch if ticket.resolution else "No patch generated." }}</pre>
+        </article>
+
+        <div class="review-actions">
+            <button id="approve-button" type="button">Approve</button>
+            <button id="reject-button" type="button" class="button-secondary">Reject</button>
+        </div>
+
+        <div id="review-status" class="status visible {% if ticket.status == 'approved' %}success{% elif ticket.status == 'rejected' %}error{% else %}pending{% endif %}">
+            {% if ticket.review_outcome %}
+                <strong>{{ ticket.status|title }}</strong><br>{{ ticket.review_outcome.message }}
+            {% else %}
+                Awaiting developer review.
+            {% endif %}
+            {% if ticket.automation_result %}
+                <br><br><strong>Automation:</strong><br>{{ ticket.automation_result.message }}
+            {% endif %}
+        </div>
+    </section>
+</main>
+
+<script>
+    const approveButton = document.getElementById("approve-button");
+    const rejectButton = document.getElementById("reject-button");
+    const statusBox = document.getElementById("review-status");
+    const token = "{{ token }}";
+    const approveUrl = `/ticket/{{ ticket.id }}/approve?token=${encodeURIComponent(token)}`;
+    const rejectUrl = `/ticket/{{ ticket.id }}/reject?token=${encodeURIComponent(token)}`;
+
+    function setStatus(type, message) {
+        statusBox.className = `status visible ${type}`;
+        statusBox.innerHTML = message;
+    }
+
+    async function submitDecision(url, actionLabel) {
+        approveButton.disabled = true;
+        rejectButton.disabled = true;
+        setStatus("pending", `${actionLabel} in progress...`);
+        try {
+            const response = await fetch(url, { method: "POST" });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || `Unable to ${actionLabel.toLowerCase()} ticket.`);
+            }
+            const outcome = data.review_outcome?.message || "Ticket updated.";
+            const statusType = data.status === "approved" && data.review_outcome?.applied ? "success" : data.status === "rejected" ? "error" : "pending";
+            setStatus(statusType, `<strong>${data.status}</strong><br>${outcome}`);
+        } catch (error) {
+            setStatus("error", error.message || `Unable to ${actionLabel.toLowerCase()} ticket.`);
+        } finally {
+            approveButton.disabled = false;
+            rejectButton.disabled = false;
+        }
+    }
+
+    approveButton.addEventListener("click", () => submitDecision(approveUrl, "Approval"));
+    rejectButton.addEventListener("click", () => submitDecision(rejectUrl, "Rejection"));
+</script>
+</body>
+</html>

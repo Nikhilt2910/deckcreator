@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="mesh-grid" aria-hidden="true"></div>
+<div class="ambient ambient-one"></div>
+<div class="ambient ambient-two"></div>
+<div class="ambient ambient-three"></div>
+<div class="ambient ambient-four"></div>
+
+<button id="feedback-toggle" class="feedback-fab" type="button">Feedback</button>
+
+<aside id="feedback-panel" class="feedback-panel" aria-hidden="true">
+    <div class="feedback-head">
+        <div>
+            <p class="panel-kicker">Feedback</p>
+            <h2>Report a bug or request a feature</h2>
+        </div>
+        <button id="feedback-close" class="feedback-close" type="button" aria-label="Close feedback panel">&times;</button>
+    </div>
+
+    <form id="feedback-form" class="feedback-form">
+        <label class="feedback-field">
+            <span>Type</span>
+            <select id="ticket_type" name="type" required>
+                <option value="bug">Bug</option>
+                <option value="feature">Feature</option>
+            </select>
+        </label>
+
+        <label class="feedback-field">
+            <span>Description</span>
+            <textarea id="ticket_description" name="description" rows="6" placeholder="Describe the bug or feature request..." required></textarea>
+        </label>
+
+        <div class="feedback-actions">
+            <button id="feedback-submit" type="submit">Submit Ticket</button>
+        </div>
+    </form>
+
+    <div id="feedback-status" class="status" aria-live="polite"></div>
+</aside>
+
+<main class="page">
+    <header class="topbar reveal">
+        <a class="brand" href="/">deckflow.</a>
+    </header>
+
+    <section class="hero reveal">
+        <div class="hero-copy">
+            <p class="eyebrow">AI Reporting Studio</p>
+            <h1>
+                Transform spreadsheets into
+                <span class="rotating-words" aria-hidden="true">
+                    <span>briefings</span>
+                    <span>insights</span>
+                    <span>decks</span>
+                    <span>stories</span>
+                </span>
+            </h1>
+            <p class="lead">
+                Upload your Excel workbook and a PowerPoint or PDF reference. The platform parses the file, generates AI insights,
+                builds a polished presentation, and returns a downloadable deck in one flow.
+            </p>
+
+            <div class="cta-row">
+                <a class="pill-link pill-link-primary" href="#generator">Generate report</a>
+            </div>
+        </div>
+
+        <aside class="hero-panel reveal">
+            <p class="panel-kicker">Pipeline</p>
+            <div class="metric-stack">
+                <article class="metric-card">
+                    <span class="metric-step">01</span>
+                    <h2>Ingest</h2>
+                    <p>Excel and reference files are uploaded and stored locally.</p>
+                </article>
+                <article class="metric-card">
+                    <span class="metric-step">02</span>
+                    <h2>Interpret</h2>
+                    <p>Workbook content is summarized and sent to OpenAI for strategic analysis.</p>
+                </article>
+                <article class="metric-card">
+                    <span class="metric-step">03</span>
+                    <h2>Present</h2>
+                    <p>Slides are generated to match the template's style and returned as a `.pptx` download.</p>
+                </article>
+            </div>
+        </aside>
+    </section>
+
+    <section class="preset-gallery reveal">
+        <div class="section-head">
+            <div>
+                <p class="panel-kicker">Template Gallery</p>
+                <h2>Start from a proven deck structure</h2>
+            </div>
+            <p class="section-copy">
+                Choose a built-in template for more reliable slide composition, or upload your own PPTX/PDF reference below.
+            </p>
+        </div>
+
+        <div class="preset-grid">
+            {% for preset in preset_templates %}
+            <label class="preset-card">
+                <input type="radio" name="built_in_template" value="{{ preset.id }}" form="report-form">
+                <span class="preset-badge">Preset</span>
+                <span class="preset-name">{{ preset.name }}</span>
+                <span class="preset-description">{{ preset.description }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="process-grid reveal">
+        <article class="process-card">
+            <p class="panel-kicker">Process</p>
+            <h2>One endpoint. Four stages.</h2>
+            <ol class="process-list">
+                <li>Process the Excel workbook into structured JSON.</li>
+                <li>Generate insights, trends, risks, and an executive summary with OpenAI.</li>
+                <li>Create a professionally formatted PowerPoint deck from your reference file and workbook data.</li>
+                <li>Return the finished `.pptx` file as a direct download.</li>
+            </ol>
+        </article>
+
+        <article class="process-card process-card-contrast">
+            <p class="panel-kicker">Inputs</p>
+            <ul class="input-list">
+                <li>Excel workbook: `.xlsx`, `.xls`, `.xlsm`</li>
+                <li>Reference file: `.pptx`, `.potx`, `.pdf`</li>
+                <li>Output: downloadable PowerPoint report</li>
+            </ul>
+        </article>
+    </section>
+
+    <section id="generator" class="generator reveal">
+        <div class="generator-head">
+            <div>
+                <p class="eyebrow">Report Generator</p>
+                <h2>Build the deck</h2>
+            </div>
+            <p class="generator-copy">
+                The UI calls <code>{{ report_url }}</code>, waits for the server to complete the pipeline,
+                and downloads the generated PowerPoint automatically.
+            </p>
+        </div>
+
+        <form id="report-form" class="report-form">
+            <label class="upload-card">
+                <span class="upload-title">Excel Workbook</span>
+                <span class="upload-copy">Business dataset for parsing and AI analysis.</span>
+                <input id="excel_file" name="excel_file" type="file" accept=".xlsx,.xls,.xlsm" required>
+            </label>
+
+            <label class="upload-card">
+                <span class="upload-title">Reference File</span>
+                <span class="upload-copy">Optional if you choose a preset. Upload a PowerPoint template or PDF reference for custom styling.</span>
+                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.potx,.pdf" required>
+            </label>
+
+            <div class="actions-row">
+                <button id="submit-button" type="submit">Generate Presentation</button>
+            </div>
+        </form>
+
+        <div class="timeline" aria-hidden="true">
+            <div class="timeline-item active"><span></span><strong>Upload</strong></div>
+            <div class="timeline-item"><span></span><strong>Parse</strong></div>
+            <div class="timeline-item"><span></span><strong>Analyze</strong></div>
+            <div class="timeline-item"><span></span><strong>Generate</strong></div>
+        </div>
+
+        <div id="status" class="status" aria-live="polite"></div>
+    </section>
+</main>
+
+<script>
+    const form = document.getElementById("report-form");
+    const statusBox = document.getElementById("status");
+    const submitButton = document.getElementById("submit-button");
+    const timelineItems = Array.from(document.querySelectorAll(".timeline-item"));
+    const reportUrl = "{{ report_url }}";
+    const ticketUrl = "/ticket";
+    const presetInputs = Array.from(document.querySelectorAll('input[name=\"built_in_template\"]'));
+    const referenceFileInput = document.getElementById("reference_file");
+    const feedbackToggle = document.getElementById("feedback-toggle");
+    const feedbackPanel = document.getElementById("feedback-panel");
+    const feedbackClose = document.getElementById("feedback-close");
+    const feedbackForm = document.getElementById("feedback-form");
+    const feedbackSubmit = document.getElementById("feedback-submit");
+    const feedbackStatus = document.getElementById("feedback-status");
+
+    function setStatus(type, message) {
+        statusBox.className = `status visible ${type}`;
+        statusBox.innerHTML = message;
+    }
+
+    function setTimeline(stepIndex) {
+        timelineItems.forEach((item, index) => {
+            item.classList.toggle("active", index <= stepIndex);
+        });
+    }
+
+    function triggerDownload(blob, fileName) {
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+    }
+
+    function extractFilename(contentDisposition) {
+        if (!contentDisposition) {
+            return "generated-report.pptx";
+        }
+        const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+        return match ? match[1] : "generated-report.pptx";
+    }
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        submitButton.disabled = true;
+        setTimeline(0);
+        setStatus("pending", "Uploading source files...");
+
+        const payload = new FormData(form);
+
+        try {
+            setTimeout(() => setTimeline(1), 250);
+            setTimeout(() => setTimeline(2), 900);
+            setTimeout(() => setTimeline(3), 1500);
+
+            const response = await fetch(reportUrl, {
+                method: "POST",
+                body: payload
+            });
+
+            if (!response.ok) {
+                let detail = "Request failed.";
+                const contentType = response.headers.get("content-type") || "";
+                if (contentType.includes("application/json")) {
+                    const errorData = await response.json();
+                    detail = errorData.detail || detail;
+                }
+                throw new Error(detail);
+            }
+
+            const fileBlob = await response.blob();
+            const fileName = extractFilename(response.headers.get("content-disposition"));
+            triggerDownload(fileBlob, fileName);
+            setTimeline(3);
+            setStatus(
+                "success",
+                `<strong>Presentation generated.</strong><br>Downloaded <code>${fileName}</code> to your browser.`
+            );
+            form.reset();
+        } catch (error) {
+            setStatus("error", error.message || "Unable to generate the presentation.");
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    const revealElements = document.querySelectorAll(".reveal");
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+            }
+        });
+    }, { threshold: 0.15 });
+
+    revealElements.forEach((element) => observer.observe(element));
+
+    function syncReferenceRequirement() {
+        const selectedPreset = presetInputs.some((input) => input.checked);
+        referenceFileInput.required = !selectedPreset;
+    }
+
+    presetInputs.forEach((input) => input.addEventListener("change", syncReferenceRequirement));
+    referenceFileInput.addEventListener("change", () => {
+        if (referenceFileInput.files.length > 0) {
+            presetInputs.forEach((input) => {
+                input.checked = false;
+            });
+        }
+        syncReferenceRequirement();
+    });
+    syncReferenceRequirement();
+
+    function toggleFeedbackPanel(isOpen) {
+        feedbackPanel.classList.toggle("is-open", isOpen);
+        feedbackPanel.setAttribute("aria-hidden", String(!isOpen));
+    }
+
+    function setFeedbackStatus(type, message) {
+        feedbackStatus.className = `status visible ${type}`;
+        feedbackStatus.innerHTML = message;
+    }
+
+    feedbackToggle.addEventListener("click", () => toggleFeedbackPanel(true));
+    feedbackClose.addEventListener("click", () => toggleFeedbackPanel(false));
+
+    feedbackForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        feedbackSubmit.disabled = true;
+        setFeedbackStatus("pending", "Submitting ticket...");
+
+        const payload = {
+            type: document.getElementById("ticket_type").value,
+            description: document.getElementById("ticket_description").value,
+        };
+
+        try {
+            const response = await fetch(ticketUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || "Unable to submit ticket.");
+            }
+
+            const syncMessage = data.jira_synced
+                ? `Jira issue created: <code>${data.jira_issue_key}</code>.`
+                : "Stored locally. Jira sync is not configured yet.";
+            const emailMessage = data.email_sent
+                ? "<br>Review email sent to the developer."
+                : data.email_error ? `<br>Email not sent: ${data.email_error}` : "";
+            setFeedbackStatus("success", `<strong>Ticket submitted.</strong><br>${syncMessage}${emailMessage}`);
+            feedbackForm.reset();
+        } catch (error) {
+            setFeedbackStatus("error", error.message || "Unable to submit ticket.");
+        } finally {
+            feedbackSubmit.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>
