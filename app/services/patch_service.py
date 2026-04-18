@@ -45,7 +45,7 @@ def apply_unified_diff(patch_text: str) -> TicketReviewOutcome:
 
     try:
         result = subprocess.run(
-            [git_path, "apply", "--reject", "--whitespace=fix", str(patch_path)],
+            [git_path, "apply", "--reject", "--whitespace=fix", "--ignore-space-change", str(patch_path)],
             cwd=BASE_DIR,
             capture_output=True,
             text=True,
@@ -94,7 +94,7 @@ def validate_unified_diff(patch_text: str) -> tuple[bool, str]:
 
     try:
         result = subprocess.run(
-            [git_path, "apply", "--check", "--verbose", str(patch_path)],
+            [git_path, "apply", "--check", "--verbose", "--ignore-space-change", str(patch_path)],
             cwd=BASE_DIR,
             capture_output=True,
             text=True,

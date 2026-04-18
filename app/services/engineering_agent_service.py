@@ -1,4 +1,6 @@
 import os
+import re
+from difflib import unified_diff
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -65,6 +67,10 @@ def generate_ticket_resolution(ticket_description: str) -> TicketResolution:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY is not set.")
+
+    literal_resolution = _try_generate_literal_text_resolution(ticket_description)
+    if literal_resolution is not None:
+        return literal_resolution
 
     client = OpenAI(api_key=api_key)
     model = os.getenv("OPENAI_ENGINEERING_MODEL", "gpt-4.1")
@@ -190,3 +196,59 @@ def _iter_codebase_files() -> list[Path]:
         if file_path.exists():
             files.append(file_path)
     return files
+
+
+def _try_generate_literal_text_resolution(ticket_description: str) -> TicketResolution | None:
+    normalized = ticket_description.lower()
+    if not any(keyword in normalized for keyword in ("remove", "delete", "hide")):
+        return None
+
+    match = re.search(r'"([^"]+)"', ticket_description)
+    if not match:
+        return None
+
+    target_text = match.group(1)
+    candidates: list[tuple[Path, str, str]] = []
+    for file_path in _iter_codebase_files():
+        if "tests" in file_path.parts:
+            continue
+        original = _read_file_preserving_newlines(file_path)
+        if target_text not in original:
+            continue
+        updated = original.replace(target_text, "", 1)
+        if updated == original:
+            continue
+        candidates.append((file_path, original, updated))
+
+    if len(candidates) != 1:
+        return None
+
+    file_path, original, updated = candidates[0]
+    relative_path = file_path.relative_to(BASE_DIR).as_posix()
+    patch = "".join(
+        unified_diff(
+            original.splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile=f"a/{relative_path}",
+            tofile=f"b/{relative_path}",
+        )
+    )
+
+    is_valid, _ = validate_unified_diff(patch)
+    if not is_valid:
+        return None
+
+    return TicketResolution(
+        files=[relative_path],
+        patch=patch,
+        explanation=(
+            f'The ticket requests removing the exact text "{target_text}". '
+            f'That text was found uniquely in `{relative_path}`, so the resolution removes it directly from that file.'
+        ),
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
+def _read_file_preserving_newlines(file_path: Path) -> str:
+    with file_path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
+        return handle.read()

@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.main import app
+from app.services.engineering_agent_service import _try_generate_literal_text_resolution
 from app.services.patch_service import apply_unified_diff, validate_unified_diff
 from app.services.review_token_service import build_review_token
 from app.schemas.ticket import TicketAutomationResult, TicketResolution, TicketReviewOutcome
@@ -391,6 +392,16 @@ class UploadApiTestCase(unittest.TestCase):
 
         self.assertFalse(is_valid)
         self.assertIn("placeholder diff", message)
+
+    def test_literal_text_resolution_handles_simple_remove_request(self) -> None:
+        resolution = _try_generate_literal_text_resolution(
+            'please remove "Start from a proven deck structure" in the page.'
+        )
+
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution.files, ["templates/index.html"])
+        self.assertIn('-                <h2>Start from a proven deck structure</h2>', resolution.patch)
+        self.assertIn('+                <h2></h2>', resolution.patch)
 
     @staticmethod
     def _build_excel_file() -> BytesIO:
