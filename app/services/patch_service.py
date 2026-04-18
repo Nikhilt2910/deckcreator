@@ -70,6 +70,54 @@ def apply_unified_diff(patch_text: str) -> TicketReviewOutcome:
     )
 
 
+def revert_unified_diff(patch_text: str) -> TicketReviewOutcome:
+    git_path = _resolve_git_executable()
+    if not git_path:
+        return TicketReviewOutcome(
+            applied=False,
+            message="git is not installed, so the patch could not be reverted automatically.",
+            applied_at=datetime.now(timezone.utc),
+        )
+
+    is_valid, validation_message = validate_unified_diff(patch_text)
+    if not is_valid:
+        return TicketReviewOutcome(
+            applied=False,
+            message=validation_message,
+            applied_at=datetime.now(timezone.utc),
+        )
+
+    with tempfile.NamedTemporaryFile("w", suffix=".diff", delete=False, encoding="utf-8") as handle:
+        handle.write(patch_text)
+        patch_path = Path(handle.name)
+
+    try:
+        result = subprocess.run(
+            [git_path, "apply", "-R", "--reject", "--whitespace=fix", "--ignore-space-change", str(patch_path)],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    finally:
+        patch_path.unlink(missing_ok=True)
+
+    output = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part).strip()
+    if result.returncode == 0:
+        return TicketReviewOutcome(
+            applied=True,
+            message=output or "Patch reverted successfully.",
+            applied_at=datetime.now(timezone.utc),
+        )
+
+    return TicketReviewOutcome(
+        applied=False,
+        message=output or "git apply -R failed.",
+        applied_at=datetime.now(timezone.utc),
+    )
+
+
 def _resolve_git_executable() -> str | None:
     configured = os.getenv("GIT_EXECUTABLE")
     if configured and Path(configured).exists():

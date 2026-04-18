@@ -308,24 +308,22 @@ def _try_generate_reference_file_addition_resolution(target_text: str) -> Ticket
 
     original = _read_file_preserving_newlines(file_path)
     updated = original
-    display_token = f"`.{target_text.lstrip('.').lower()}`"
-    accept_token = f".{target_text.lstrip('.').lower()}"
+    normalized_token = target_text.lstrip(".").lower()
+    display_token = f"`.{normalized_token}`"
+    accept_token = f".{normalized_token}"
 
-    visible_pattern = "Reference file: `.pptx`, `.pdf`"
-    if visible_pattern in updated and display_token not in updated:
-        updated = updated.replace(
-            visible_pattern,
-            f"Reference file: `.pptx`, {display_token}, `.pdf`",
-            1,
-        )
-
-    accept_pattern = 'accept=".pptx,.pdf"'
-    if accept_pattern in updated:
-        updated = updated.replace(
-            accept_pattern,
-            f'accept=".pptx,{accept_token},.pdf"',
-            1,
-        )
+    updated = re.sub(
+        r"Reference file:\s+([^<]+)</li>",
+        lambda match: _insert_display_token(match.group(1), display_token),
+        updated,
+        count=1,
+    )
+    updated = re.sub(
+        r'accept="([^"]+)"',
+        lambda match: _insert_accept_token(match.group(1), accept_token),
+        updated,
+        count=1,
+    )
 
     if updated == original:
         return None
@@ -376,3 +374,27 @@ def _extract_literal_target(ticket_description: str) -> str | None:
         if match:
             return match.group(1).strip(" ,.:;")
     return None
+
+
+def _insert_display_token(existing_segment: str, display_token: str) -> str:
+    if display_token in existing_segment:
+        return f"Reference file: {existing_segment}</li>"
+    parts = [part.strip() for part in existing_segment.split(",")]
+    if "`.pdf`" in parts:
+        index = parts.index("`.pdf`")
+        parts.insert(index, display_token)
+    else:
+        parts.append(display_token)
+    return f"Reference file: {', '.join(parts)}</li>"
+
+
+def _insert_accept_token(existing_segment: str, accept_token: str) -> str:
+    parts = [part.strip() for part in existing_segment.split(",") if part.strip()]
+    if accept_token in parts:
+        return f'accept="{existing_segment}"'
+    if ".pdf" in parts:
+        index = parts.index(".pdf")
+        parts.insert(index, accept_token)
+    else:
+        parts.append(accept_token)
+    return f'accept="{",".join(parts)}"'

@@ -31,16 +31,7 @@ def run_post_approval_pipeline(ticket_id: str) -> TicketAutomationResult:
             completed_at=datetime.now(timezone.utc),
         )
 
-    branch_name = os.getenv("GITHUB_BRANCH", f"ticket/{ticket_id}")
-    checkout_result = _run_command([git_path, "checkout", "-B", branch_name])
-    if checkout_result.returncode != 0:
-        return TicketAutomationResult(
-            patch_applied=True,
-            tests_passed=True,
-            branch=branch_name,
-            message=_combine_output("Failed to create or switch branch.", checkout_result),
-            completed_at=datetime.now(timezone.utc),
-        )
+    branch_name = os.getenv("GITHUB_BRANCH") or _current_branch(git_path) or "master"
 
     add_result = _run_command([git_path, "add", "."])
     if add_result.returncode != 0:
@@ -112,6 +103,14 @@ def _ensure_remote(git_path: str, remote_url: str) -> None:
             _run_command([git_path, "remote", "set-url", "origin", remote_url])
         return
     _run_command([git_path, "remote", "add", "origin", remote_url])
+
+
+def _current_branch(git_path: str) -> str | None:
+    result = _run_command([git_path, "branch", "--show-current"])
+    if result.returncode != 0:
+        return None
+    branch_name = result.stdout.strip()
+    return branch_name or None
 
 
 def _run_command(command: list[str], timeout: int = 60) -> subprocess.CompletedProcess[str]:

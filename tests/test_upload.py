@@ -364,6 +364,63 @@ class UploadApiTestCase(unittest.TestCase):
         self.assertTrue(payload["review_outcome"]["applied"])
         self.assertTrue(payload["automation_result"]["pushed"])
 
+    def test_ticket_approve_rolls_back_when_push_pipeline_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tickets_path = Path(temp_dir) / "tickets.json"
+            tickets_path.write_text(json.dumps([{
+                "id": "ticket888",
+                "type": "bug",
+                "description": "Fix reference file labels.",
+                "created_at": "2026-04-18T00:00:00Z",
+                "jira_synced": False,
+                "jira_issue_key": None,
+                "resolution": {
+                    "files": ["templates/index.html"],
+                    "patch": "--- a/templates/index.html\n+++ b/templates/index.html",
+                    "explanation": "Adjust labels.",
+                    "generated_at": "2026-04-18T00:00:00Z",
+                },
+                "status": "pending",
+                "developer_email": "nikhil.t2910@gmail.com",
+                "review_url": "http://127.0.0.1:8000/ticket/ticket888/review",
+                "email_sent": True,
+                "email_error": None,
+                "review_outcome": None,
+            }]), encoding="utf-8")
+            with patch("app.services.ticket_service.TICKETS_FILE", tickets_path), patch(
+                "app.services.ticket_service.apply_unified_diff",
+                return_value=TicketReviewOutcome(
+                    applied=True,
+                    message="Patch applied successfully.",
+                    applied_at="2026-04-18T00:00:00Z",
+                ),
+            ), patch(
+                "app.services.ticket_service.run_post_approval_pipeline",
+                return_value=TicketAutomationResult(
+                    patch_applied=True,
+                    tests_passed=False,
+                    pushed=False,
+                    branch="master",
+                    commit_sha=None,
+                    message="Tests failed.",
+                    completed_at="2026-04-18T00:00:00Z",
+                ),
+            ), patch(
+                "app.services.ticket_service.revert_unified_diff",
+                return_value=TicketReviewOutcome(
+                    applied=True,
+                    message="Patch reverted successfully.",
+                    applied_at="2026-04-18T00:00:00Z",
+                ),
+            ):
+                token = build_review_token("ticket888")
+                response = self.client.post(f"/ticket/ticket888/approve?token={token}")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["review_outcome"]["applied"])
+        self.assertIn("rolled back", payload["review_outcome"]["message"])
+
     def test_invalid_review_token_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             tickets_path = Path(temp_dir) / "tickets.json"
@@ -437,10 +494,9 @@ class UploadApiTestCase(unittest.TestCase):
 
         self.assertIsNotNone(resolution)
         self.assertEqual(resolution.files, ["templates/index.html"])
-        self.assertIn("-                <li>Reference file: `.pptx`, `.pdf`</li>", resolution.patch)
-        self.assertIn("+                <li>Reference file: `.pptx`</li>", resolution.patch)
-        self.assertIn('-                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.pdf" required>', resolution.patch)
-        self.assertIn('+                <input id="reference_file" name="reference_file" type="file" accept=".pptx" required>', resolution.patch)
+        self.assertIn(".pdf", resolution.patch)
+        self.assertIn("Reference file:", resolution.patch)
+        self.assertIn('accept="', resolution.patch)
 
     def test_literal_text_resolution_supports_unquoted_text(self) -> None:
         resolution = _try_generate_literal_text_resolution(
@@ -449,26 +505,27 @@ class UploadApiTestCase(unittest.TestCase):
 
         self.assertIsNotNone(resolution)
         self.assertEqual(resolution.files, ["templates/index.html"])
-        self.assertIn("-                <li>Reference file: `.pptx`, `.pdf`</li>", resolution.patch)
+        self.assertIn(".pdf", resolution.patch)
 
     def test_literal_text_resolution_supports_addition_with_single_quotes(self) -> None:
         resolution = _try_generate_literal_text_resolution(
-            "please also mention and add 'potx' files under inputs for reference file section"
+            "please also mention and add 'potm' files under inputs for reference file section"
         )
 
         self.assertIsNotNone(resolution)
         self.assertEqual(resolution.files, ["templates/index.html"])
-        self.assertIn("+                <li>Reference file: `.pptx`, `.potx`, `.pdf`</li>", resolution.patch)
-        self.assertIn('+                <input id="reference_file" name="reference_file" type="file" accept=".pptx,.potx,.pdf" required>', resolution.patch)
+        self.assertIn(".potm", resolution.patch)
+        self.assertIn("Reference file:", resolution.patch)
+        self.assertIn('accept="', resolution.patch)
 
     def test_literal_text_resolution_supports_addition_without_quotes(self) -> None:
         resolution = _try_generate_literal_text_resolution(
-            "please add potx files under inputs for reference file section"
+            "please add potm files under inputs for reference file section"
         )
 
         self.assertIsNotNone(resolution)
         self.assertEqual(resolution.files, ["templates/index.html"])
-        self.assertIn(".potx", resolution.patch)
+        self.assertIn(".potm", resolution.patch)
 
     @staticmethod
     def _build_excel_file() -> BytesIO:

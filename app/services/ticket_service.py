@@ -11,7 +11,7 @@ from app.core.config import TICKETS_FILE
 from app.schemas.ticket import TicketCreate, TicketResolution, TicketResponse, TicketReviewOutcome
 from app.services.email_service import DEFAULT_DEVELOPER_EMAIL, send_ticket_review_email
 from app.services.engineering_agent_service import generate_ticket_resolution
-from app.services.patch_service import apply_unified_diff
+from app.services.patch_service import apply_unified_diff, revert_unified_diff
 from app.services.repo_automation_service import run_post_approval_pipeline
 
 
@@ -61,6 +61,17 @@ async def approve_ticket(ticket_id: str) -> TicketResponse:
     ticket.review_outcome = _apply_resolution(ticket.resolution)
     if ticket.review_outcome.applied:
         ticket.automation_result = run_post_approval_pipeline(ticket.id)
+        if not ticket.automation_result.pushed:
+            rollback = _rollback_resolution(ticket.resolution)
+            ticket.review_outcome = TicketReviewOutcome(
+                applied=False,
+                message=(
+                    f"{ticket.review_outcome.message}\n"
+                    f"Automation did not finish cleanly, so the local patch was rolled back.\n"
+                    f"{rollback.message}"
+                ).strip(),
+                applied_at=datetime.now(timezone.utc),
+            )
     _write_ticket(ticket, index, tickets)
     return ticket
 
@@ -113,6 +124,16 @@ def _apply_resolution(resolution: TicketResolution | None) -> TicketReviewOutcom
             applied_at=datetime.now(timezone.utc),
         )
     return apply_unified_diff(resolution.patch)
+
+
+def _rollback_resolution(resolution: TicketResolution | None) -> TicketReviewOutcome:
+    if resolution is None:
+        return TicketReviewOutcome(
+            applied=False,
+            message="No generated resolution was available to roll back.",
+            applied_at=datetime.now(timezone.utc),
+        )
+    return revert_unified_diff(resolution.patch)
 
 
 def _load_ticket(ticket_id: str) -> tuple[TicketResponse, int, list[dict]]:
