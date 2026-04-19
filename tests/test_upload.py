@@ -630,6 +630,16 @@ class UploadApiTestCase(unittest.TestCase):
         self.assertIn('-        <aside className="side-rail">', resolution.patch)
         self.assertIn('-        </aside>', resolution.patch)
 
+    def test_literal_text_resolution_removes_named_upload_block(self) -> None:
+        resolution = _try_generate_literal_text_resolution(
+            'In the upload page please remove the "Recommended reference order" block.'
+        )
+
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution.files, ["frontend/app/upload/page.tsx"])
+        self.assertIn('-          <div className="console-card">', resolution.patch)
+        self.assertIn('-            <div className="console-label">Recommended reference order</div>', resolution.patch)
+
     @staticmethod
     def _build_excel_file() -> BytesIO:
         buffer = BytesIO()

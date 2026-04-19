@@ -118,7 +118,7 @@ export default function TicketsPage() {
               </p>
             ) : result.email_error ? (
               <p className="result-note">
-                Ticket creation succeeded. No review email was sent because: {result.email_error}
+                Ticket creation succeeded. Developer review is still being prepared for this request.
               </p>
             ) : null}
           </div>

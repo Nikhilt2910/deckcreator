@@ -484,52 +484,79 @@ def _try_generate_named_block_resolution(ticket_description: str) -> TicketResol
 
 def _try_generate_direct_container_resolution(ticket_description: str) -> TicketResolution | None:
     normalized = ticket_description.lower()
-    if "support" not in normalized and "ticket" not in normalized:
-        return None
+    route_file_candidates: list[tuple[Path, str, tuple[str, ...], str]] = []
 
-    container_markers = {
-        "side-rail": '<aside className="side-rail">',
-        "signal-list": '<ul className="signal-list">',
-        "console-card": '<div className="console-card">',
-    }
-    marker = next((value for key, value in container_markers.items() if key in normalized), None)
-    if marker is None:
-        return None
-
-    file_path = BASE_DIR / "frontend" / "app" / "tickets" / "page.tsx"
-    if not file_path.exists():
-        return None
-
-    original = _read_file_preserving_newlines(file_path)
-    if marker not in original:
-        return None
-
-    updated = _remove_named_block(original, marker, ticket_description)
-    if updated == original:
-        return None
-
-    relative_path = file_path.relative_to(BASE_DIR).as_posix()
-    patch = "".join(
-        unified_diff(
-            original.splitlines(keepends=True),
-            updated.splitlines(keepends=True),
-            fromfile=f"a/{relative_path}",
-            tofile=f"b/{relative_path}",
+    if "support" in normalized or "ticket" in normalized:
+        route_file_candidates.append(
+            (
+                BASE_DIR / "frontend" / "app" / "tickets" / "page.tsx",
+                "Support tab",
+                (
+                    ("side-rail", '<aside className="side-rail">'),
+                    ("signal-list", '<ul className="signal-list">'),
+                    ("console-card", '<div className="console-card">'),
+                ),
+                "support",
+            )
         )
-    )
-    is_valid, _ = validate_unified_diff(patch)
-    if not is_valid:
-        return None
 
-    return TicketResolution(
-        files=[relative_path],
-        patch=patch,
-        explanation=(
-            "The ticket refers to a named UI container in the Support tab, so the resolver removes the entire matching "
-            f"container from `{relative_path}` rather than deleting individual text nodes."
-        ),
-        generated_at=datetime.now(timezone.utc),
-    )
+    if "upload" in normalized or "backend" in normalized:
+        route_file_candidates.append(
+            (
+                BASE_DIR / "frontend" / "app" / "upload" / "page.tsx",
+                "Upload page",
+                (
+                    ("connected backend", '<div className="console-card accent">'),
+                    ("requests are sent", '<div className="console-card accent">'),
+                    ("backend url", '<div className="console-card accent">'),
+                    ("do not expose backend", '<div className="console-card accent">'),
+                    ("console-card accent", '<div className="console-card accent">'),
+                    ("recommended reference order", '<div className="console-card">'),
+                    ("reference order", '<div className="console-card">'),
+                ),
+                "upload",
+            )
+        )
+
+    for file_path, page_label, container_markers, route_label in route_file_candidates:
+        marker = next((value for key, value in container_markers if key in normalized), None)
+        if marker is None:
+            continue
+        if not file_path.exists():
+            continue
+
+        original = _read_file_preserving_newlines(file_path)
+        if marker not in original:
+            continue
+
+        updated = _remove_named_block(original, marker, ticket_description)
+        if updated == original:
+            continue
+
+        relative_path = file_path.relative_to(BASE_DIR).as_posix()
+        patch = "".join(
+            unified_diff(
+                original.splitlines(keepends=True),
+                updated.splitlines(keepends=True),
+                fromfile=f"a/{relative_path}",
+                tofile=f"b/{relative_path}",
+            )
+        )
+        is_valid, _ = validate_unified_diff(patch)
+        if not is_valid:
+            continue
+
+        return TicketResolution(
+            files=[relative_path],
+            patch=patch,
+            explanation=(
+                f"The ticket refers to a named UI container on the {page_label}, so the resolver removes the entire "
+                f"matching `{route_label}` container from `{relative_path}` rather than deleting individual text nodes."
+            ),
+            generated_at=datetime.now(timezone.utc),
+        )
+
+    return None
 
 
 def _remove_named_block(source_text: str, target_text: str, ticket_description: str) -> str:

@@ -81,14 +81,6 @@ export default function UploadPage() {
               <li>3. PDF for visual direction only</li>
             </ul>
           </div>
-          <div className="console-card accent">
-            <div className="console-label">Connected backend</div>
-            <p>
-              Requests are sent to
-              {" "}
-              <code>{process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}</code>.
-            </p>
-          </div>
         </aside>
       </section>
 

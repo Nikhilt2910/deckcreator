@@ -16,6 +16,8 @@ FRONTEND_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+FRONTEND_ORIGIN_REGEX = os.getenv("FRONTEND_ORIGIN_REGEX", r"https://.*\.vercel\.app")
+FRONTEND_APP_URL = os.getenv("FRONTEND_APP_URL", FRONTEND_ORIGIN)
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 SMTP_HOST = os.getenv("SMTP_HOST", "")
