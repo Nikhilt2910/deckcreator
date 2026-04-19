@@ -78,7 +78,6 @@ export default function TicketsPage() {
 
         <aside className="side-rail">
           <div className="console-card">
-            <div className="console-label"></div>
             <ul className="signal-list">
               <li>1. Ticket stored locally</li>
               <li>2. Jira issue created</li>
