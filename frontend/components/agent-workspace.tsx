@@ -46,7 +46,15 @@ const DECK_INTENT_KEYWORDS = [
   "storyline",
   "board deck",
   "investor deck",
+  "board review",
+  "pitch",
+  "proposal",
+  "report",
+  "brief",
+  "theme",
+  "style",
 ];
+const DECK_INTENT_VERBS = ["generate", "create", "build", "make", "draft", "prepare"];
 const SUGGESTIONS = [
   "What are the latest retail media trends this quarter?",
   "Summarize current AI presentation design tools and cite sources.",
@@ -526,5 +534,14 @@ function inferDeckIntent(prompt: string, attachments: PendingAttachment[]) {
     return false;
   }
 
-  return DECK_INTENT_KEYWORDS.some((keyword) => normalized.includes(keyword));
+  if (DECK_INTENT_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return true;
+  }
+
+  return (
+    DECK_INTENT_VERBS.some((verb) => normalized.includes(verb)) &&
+    ["theme", "style", "narrative", "story", "board", "executive", "strategy"].some((cue) =>
+      normalized.includes(cue),
+    )
+  );
 }
