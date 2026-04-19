@@ -9,7 +9,7 @@ router = APIRouter(tags=["reports"])
 
 @router.post("/reports/generate")
 async def generate_report(
-    excel_file: UploadFile = File(...),
+    excel_file: UploadFile | None = File(default=None),
     reference_file: UploadFile | None = File(default=None),
     built_in_template: str | None = Form(default=None),
     prompt: str | None = Form(default=None),

@@ -3,7 +3,12 @@ from pathlib import Path
 from pypdf import PdfReader
 
 
-def load_reference_context(reference_path: Path) -> dict[str, str]:
+def load_reference_context(reference_path: Path | None) -> dict[str, str]:
+    if reference_path is None:
+        return {
+            "reference_type": "none",
+            "reference_text": "",
+        }
     if reference_path.suffix.lower() == ".pdf":
         return {
             "reference_type": "pdf",

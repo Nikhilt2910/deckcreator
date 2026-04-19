@@ -4,7 +4,7 @@ const PptxGenJS = require("pptxgenjs");
 const SHAPE_TYPES = { rect: "rect", line: "line" };
 const CHART_TYPES = { bar: "bar" };
 
-const THEME = {
+const DEFAULT_THEME = {
   layoutName: "DECKCREATOR_WIDE",
   width: 13.333,
   height: 7.5,
@@ -42,6 +42,7 @@ const THEME = {
     table: 10,
   },
 };
+let THEME = createTheme();
 
 function main() {
   const payloadPath = process.argv[2];
@@ -53,6 +54,7 @@ function main() {
   const analysis = payload.analysis;
   const outputPath = payload.outputPath;
   const referencePath = payload.referencePath || "";
+  THEME = createTheme(payload.theme || analysis.theme || {});
 
   ensureDirectory(path.dirname(outputPath));
 
@@ -501,10 +503,50 @@ function addChartSlide(pptx, title, categories, values) {
 
 function buildReferenceSubtitle(referencePath) {
   if (!referencePath) {
-    return "No uploaded reference file was provided. The deck uses the built-in presentation system.";
+    return THEME.meta.designSummary
+      ? `Theme direction: ${THEME.meta.designSummary}`
+      : "No reference file was provided. The deck uses a researched built-in presentation system.";
   }
   const referenceName = path.basename(referencePath);
   return `Reference input: ${referenceName}. The slide engine uses a consistent generated theme rather than mutating the uploaded file directly.`;
+}
+
+function createTheme(themeInput = {}) {
+  const colors = themeInput.colors || {};
+  const fonts = themeInput.fonts || {};
+  return {
+    ...DEFAULT_THEME,
+    colors: {
+      ...DEFAULT_THEME.colors,
+      canvas: sanitizeColor(colors.canvas, DEFAULT_THEME.colors.canvas),
+      ink: sanitizeColor(colors.ink, DEFAULT_THEME.colors.ink),
+      muted: sanitizeColor(colors.muted, DEFAULT_THEME.colors.muted),
+      accent: sanitizeColor(colors.accent, DEFAULT_THEME.colors.accent),
+      accentSoft: sanitizeColor(colors.accent_soft || colors.accentSoft, DEFAULT_THEME.colors.accentSoft),
+      line: sanitizeColor(colors.line, DEFAULT_THEME.colors.line),
+      card: sanitizeColor(colors.card, DEFAULT_THEME.colors.card),
+      stripe: sanitizeColor(colors.stripe, DEFAULT_THEME.colors.stripe),
+      danger: sanitizeColor(colors.danger, DEFAULT_THEME.colors.danger),
+    },
+    fonts: {
+      ...DEFAULT_THEME.fonts,
+      title: fonts.title || DEFAULT_THEME.fonts.title,
+      body: fonts.body || DEFAULT_THEME.fonts.body,
+      mono: fonts.mono || fonts.body || DEFAULT_THEME.fonts.mono,
+    },
+    meta: {
+      themeName: themeInput.theme_name || "DeckCreator System",
+      designSummary: themeInput.design_summary || "",
+    },
+  };
+}
+
+function sanitizeColor(value, fallback) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const normalized = value.replace("#", "").trim().toUpperCase();
+  return /^[0-9A-F]{6}$/.test(normalized) ? normalized : fallback;
 }
 
 function buildSampleHeaders(sampleRows) {

@@ -15,8 +15,8 @@ RENDERER_DIR = BASE_DIR / "deck_renderer"
 RENDERER_SCRIPT = RENDERER_DIR / "generateDeck.js"
 
 
-def generate_presentation(reference_path: Path, analysis: PresentationAnalysis, output_dir: Path) -> Path:
-    if reference_path.suffix.lower() in {".pptx", ".potx"}:
+def generate_presentation(reference_path: Path | None, analysis: PresentationAnalysis, output_dir: Path) -> Path:
+    if reference_path and reference_path.suffix.lower() in {".pptx", ".potx"}:
         return generate_template_preserving_presentation(
             reference_path=reference_path,
             analysis=analysis,
@@ -26,8 +26,9 @@ def generate_presentation(reference_path: Path, analysis: PresentationAnalysis, 
     output_path = output_dir / _build_output_name(analysis.title)
     payload = {
         "analysis": analysis.model_dump(mode="json"),
-        "referencePath": str(reference_path),
+        "referencePath": str(reference_path) if reference_path else "",
         "outputPath": str(output_path),
+        "theme": analysis.theme.model_dump(mode="json") if analysis.theme else None,
     }
 
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as handle:

@@ -34,11 +34,23 @@ type ChatMessage = {
 };
 
 const EXCEL_EXTENSIONS = [".xlsx", ".xls", ".xlsm"];
-const REFERENCE_EXTENSIONS = [".pptx", ".", ".pdf"];
+const REFERENCE_EXTENSIONS = [".pptx", ".potx", ".pdf"];
+const DECK_INTENT_KEYWORDS = [
+  "deck",
+  "presentation",
+  "slides",
+  "slide",
+  "powerpoint",
+  "ppt",
+  "pptx",
+  "storyline",
+  "board deck",
+  "investor deck",
+];
 const SUGGESTIONS = [
   "What are the latest retail media trends this quarter?",
   "Summarize current AI presentation design tools and cite sources.",
-  "Generate an executive deck from my workbook and template with a sharper McKinsey tone.",
+  "Generate an executive deck in a premium Stripe-style theme with sharper McKinsey tone.",
   "Explain how to improve ROI storytelling in a board presentation.",
 ];
 
@@ -54,7 +66,7 @@ export function AgentWorkspace() {
       role: "assistant",
       kind: "text",
       content:
-        "Ask a question for live web research, or attach one Excel workbook and one PPT/POTX/PDF reference to generate an editable deck.",
+        "Ask a question for live web research, or generate a deck from a prompt with optional Excel and reference files.",
     },
   ]);
 
@@ -132,10 +144,10 @@ export function AgentWorkspace() {
 
     setIsSubmitting(true);
     try {
-      if (classified.excel && classified.reference) {
-        await runDeckGeneration(trimmedPrompt, classified.excel.file, classified.reference.file);
-      } else {
-        if (currentAttachments.length > 0) {
+      const shouldGenerateDeck = inferDeckIntent(trimmedPrompt, currentAttachments);
+
+      if (shouldGenerateDeck) {
+        if (!trimmedPrompt && !classified.excel) {
           setMessages((current) => [
             ...current,
             {
@@ -143,12 +155,14 @@ export function AgentWorkspace() {
               role: "assistant",
               kind: "text",
               content:
-                "For deck generation, attach exactly one Excel workbook and one PPT, POTX, or PDF reference file. For research questions, send just the prompt.",
+                "Add a deck prompt, or attach an Excel workbook, to generate a presentation. Reference files are optional.",
             },
           ]);
           return;
         }
 
+        await runDeckGeneration(trimmedPrompt, classified.excel?.file, classified.reference?.file);
+      } else {
         if (!trimmedPrompt) {
           setMessages((current) => [
             ...current,
@@ -220,11 +234,11 @@ export function AgentWorkspace() {
     }
   }
 
-  async function runDeckGeneration(userPrompt: string, excelFile: File, referenceFile: File) {
+  async function runDeckGeneration(userPrompt: string, excelFile?: File, referenceFile?: File) {
     const statusId = createId();
     const steps = [
-      "Validate workbook and reference",
-      "Build the narrative from the data",
+      "Gather prompt and attachments",
+      "Build the narrative and theme",
       "Render the editable deck",
     ];
     setMessages((current) => [
@@ -255,7 +269,7 @@ export function AgentWorkspace() {
                 ...message,
                 kind: "download",
                 content:
-                  "Your deck is ready. I used the uploaded workbook, reference file, and prompt to generate an editable presentation.",
+                  "Your deck is ready. I used your prompt plus any attached files to generate an editable presentation.",
                 downloadName: result.filename,
                 downloadUrl,
                 steps: undefined,
@@ -302,8 +316,8 @@ export function AgentWorkspace() {
           <div className="agent-eyebrow">DeckCreator agent</div>
           <h1>Ask, attach, and generate in one conversation.</h1>
           <p>
-            Use live web search for questions. Attach an Excel workbook and a style reference to
-            generate a deck with progress and a downloadable PPTX.
+            Use live web search for questions. Generate a deck from a prompt alone, or attach an
+            Excel workbook and optional reference file for a more grounded editable PPTX.
           </p>
         </div>
         <div className="agent-capabilities">
@@ -414,7 +428,7 @@ export function AgentWorkspace() {
           type="file"
           className="hidden-input"
           multiple
-          accept=".xlsx,.xls,.xlsm,.pptx,.pdf"
+          accept=".xlsx,.xls,.xlsm,.pptx,.potx,.pdf"
           onChange={handleFileSelection}
         />
 
@@ -433,7 +447,7 @@ export function AgentWorkspace() {
           </div>
         ) : (
           <div className="composer-hint">
-            Attach one Excel workbook and one PPT/POTX/PDF reference for deck generation.
+            Add a prompt to generate a deck. Excel and PPT/POTX/PDF reference files are optional.
           </div>
         )}
       </form>
@@ -501,3 +515,16 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+
+function inferDeckIntent(prompt: string, attachments: PendingAttachment[]) {
+  if (attachments.length > 0) {
+    return true;
+  }
+
+  const normalized = prompt.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return DECK_INTENT_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}

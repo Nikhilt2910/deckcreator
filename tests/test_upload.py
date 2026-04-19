@@ -5,9 +5,11 @@ import unittest
 import json
 import tempfile
 from unittest.mock import AsyncMock, patch
+import asyncio
 
 import pandas as pd
 from fastapi.testclient import TestClient
+from fastapi import UploadFile
 from pptx import Presentation
 from pypdf import PdfWriter
 
@@ -25,6 +27,8 @@ from app.services.review_token_service import build_review_token
 from app.services.email_service import _build_frontend_review_url
 from app.schemas.ticket import TicketAutomationResult, TicketResolution, TicketReviewOutcome
 from app.schemas.assistant import AssistantResponse, AssistantSource
+from app.schemas.presentation import PresentationTheme
+from app.services.report_service import generate_report_from_uploads
 
 
 class UploadApiTestCase(unittest.TestCase):
@@ -223,6 +227,77 @@ class UploadApiTestCase(unittest.TestCase):
         self.assertEqual(
             mock_generate_report.await_args.kwargs["prompt"],
             "Focus on efficiency by channel and keep the story concise.",
+        )
+
+    @patch("app.api.routes.reports.generate_report_from_uploads", new_callable=AsyncMock)
+    def test_report_generation_route_allows_prompt_only_deck_requests(self, mock_generate_report) -> None:
+        ppt_bytes = self._build_ppt_template()
+        with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as temp_file:
+            temp_file.write(ppt_bytes.getvalue())
+            generated_path = Path(temp_file.name)
+
+        mock_generate_report.return_value = generated_path
+        response = self.client.post(
+            "/reports/generate",
+            data={"prompt": "Generate a board deck in a Stripe-inspired theme."},
+        )
+
+        generated_path.unlink(missing_ok=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(mock_generate_report.await_args.kwargs["excel_file"])
+        self.assertIsNone(mock_generate_report.await_args.kwargs["reference_file"])
+        self.assertEqual(
+            mock_generate_report.await_args.kwargs["prompt"],
+            "Generate a board deck in a Stripe-inspired theme.",
+        )
+
+    @patch("app.services.report_service.generate_presentation")
+    @patch("app.services.report_service.build_prompt_only_deck_plan")
+    def test_report_service_builds_prompt_only_deck_without_files(
+        self,
+        mock_build_prompt_only_deck_plan,
+        mock_generate_presentation,
+    ) -> None:
+        mock_build_prompt_only_deck_plan.return_value = type(
+            "PromptPlan",
+            (),
+            {
+                "model_dump": lambda self: {
+                    "title": "AI Strategy Deck",
+                    "executive_summary": "A concise strategy story.",
+                    "key_insights": ["Insight 1"],
+                    "trends": ["Trend 1"],
+                    "risks": ["Risk 1"],
+                    "kpis": {"slide_count": "8", "timeframe": "Q2", "priority": "High", "scope": "Global"},
+                    "channel_rows": [],
+                    "region_rows": [],
+                    "top_campaign_rows": [],
+                    "sample_rows": [],
+                    "theme": PresentationTheme(
+                        theme_name="Stripe Inspired",
+                        design_summary="Use deep slate with cool violet accents.",
+                        colors={"canvas": "F7F8FC", "accent": "635BFF"},
+                        fonts={"title": "Aptos Display", "body": "Aptos"},
+                    ).model_dump(),
+                }
+            },
+        )()
+        output_path = Path(tempfile.gettempdir()) / "prompt-only-test-output.pptx"
+        mock_generate_presentation.return_value = output_path
+
+        result = asyncio.run(
+            generate_report_from_uploads(
+                excel_file=None,
+                reference_file=None,
+                prompt="Generate an AI strategy deck in a Stripe-like theme.",
+            )
+        )
+
+        self.assertEqual(result, output_path)
+        self.assertEqual(mock_generate_presentation.call_args.kwargs["reference_path"], None)
+        self.assertEqual(
+            mock_generate_presentation.call_args.kwargs["analysis"].theme.theme_name,
+            "Stripe Inspired",
         )
 
     @patch(

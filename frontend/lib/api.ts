@@ -72,13 +72,17 @@ export async function uploadFiles(excelFile: File, referenceFile: File): Promise
 }
 
 export async function generateReport(
-  excelFile: File,
-  referenceFile: File,
+  excelFile?: File,
+  referenceFile?: File,
   prompt?: string,
 ): Promise<GeneratedDeckResult> {
   const formData = new FormData();
-  formData.append("excel_file", excelFile);
-  formData.append("reference_file", referenceFile);
+  if (excelFile) {
+    formData.append("excel_file", excelFile);
+  }
+  if (referenceFile) {
+    formData.append("reference_file", referenceFile);
+  }
   if (prompt?.trim()) {
     formData.append("prompt", prompt.trim());
   }
