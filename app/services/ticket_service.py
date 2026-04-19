@@ -46,6 +46,10 @@ async def create_ticket(payload: TicketCreate) -> TicketResponse:
 async def regenerate_ticket_resolution(ticket_id: str) -> TicketResponse:
     ticket, index, tickets = _load_ticket(ticket_id)
     ticket.resolution = _safe_generate_resolution(ticket.description)
+    if ticket.resolution is not None and not ticket.email_sent:
+        email_sent, email_error = _maybe_send_review_email(ticket)
+        ticket.email_sent = email_sent
+        ticket.email_error = email_error
     _write_ticket(ticket, index, tickets)
     return ticket
 
@@ -58,9 +62,12 @@ def get_ticket(ticket_id: str) -> TicketResponse:
 async def approve_ticket(ticket_id: str) -> TicketResponse:
     ticket, index, tickets = _load_ticket(ticket_id)
     ticket.status = "approved"
-    ticket.review_outcome = _apply_resolution(ticket.resolution)
+    ticket.review_outcome = _apply_resolution_with_refresh(ticket)
     if ticket.review_outcome.applied:
-        ticket.automation_result = run_post_approval_pipeline(ticket.id)
+        ticket.automation_result = run_post_approval_pipeline(
+            ticket.id,
+            files_to_stage=ticket.resolution.files if ticket.resolution else None,
+        )
         if not ticket.automation_result.pushed:
             rollback = _rollback_resolution(ticket.resolution)
             ticket.review_outcome = TicketReviewOutcome(
@@ -126,6 +133,24 @@ def _apply_resolution(resolution: TicketResolution | None) -> TicketReviewOutcom
     return apply_unified_diff(resolution.patch)
 
 
+def _apply_resolution_with_refresh(ticket: TicketResponse) -> TicketReviewOutcome:
+    initial = _apply_resolution(ticket.resolution)
+    if initial.applied:
+        return initial
+
+    refreshed = _safe_generate_resolution(ticket.description)
+    if refreshed is None:
+        return initial
+
+    ticket.resolution = refreshed
+    retried = _apply_resolution(ticket.resolution)
+    if retried.applied:
+        retried.message = (
+            "The original patch was stale, so the app regenerated the resolution against the current codebase and applied the refreshed patch."
+        )
+    return retried
+
+
 def _rollback_resolution(resolution: TicketResolution | None) -> TicketReviewOutcome:
     if resolution is None:
         return TicketReviewOutcome(
@@ -150,8 +175,8 @@ def _write_ticket(ticket: TicketResponse, index: int, tickets: list[dict]) -> No
 
 
 def _build_review_url(ticket_id: str) -> str:
-    base_url = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-    return f"{base_url}/ticket/{ticket_id}/review"
+    base_url = os.getenv("FRONTEND_APP_URL", "http://localhost:3000").rstrip("/")
+    return f"{base_url}/review/{ticket_id}"
 
 
 async def _create_jira_issue(payload: TicketCreate, ticket_id: str) -> str | None:

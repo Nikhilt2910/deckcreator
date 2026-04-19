@@ -12,8 +12,10 @@ export default function TicketsPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setResult(null);
+    const form = event.currentTarget;
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const type = formData.get("type") as TicketType;
     const description = String(formData.get("description") ?? "").trim();
 
@@ -26,7 +28,7 @@ export default function TicketsPage() {
       setIsSubmitting(true);
       const ticket = await createTicket(type, description);
       setResult(ticket);
-      event.currentTarget.reset();
+      form.reset();
     } catch (submitError) {
       setResult(null);
       setError(submitError instanceof Error ? submitError.message : "Ticket creation failed.");
@@ -76,7 +78,7 @@ export default function TicketsPage() {
 
         <aside className="side-rail">
           <div className="console-card">
-            <div className="console-label">What happens next</div>
+            <div className="console-label"></div>
             <ul className="signal-list">
               <li>1. Ticket stored locally</li>
               <li>2. Jira issue created</li>
@@ -87,8 +89,58 @@ export default function TicketsPage() {
         </aside>
       </section>
 
-      {error ? <pre className="result">{error}</pre> : null}
-      {result ? <pre className="result">{JSON.stringify(result, null, 2)}</pre> : null}
+      {error ? <pre className="result result-error">{error}</pre> : null}
+      {result ? (
+        <section className="result-card">
+          <div className="result-head">
+            <div>
+              <div className="console-label">Ticket created</div>
+              <h2>{result.jira_issue_key ?? result.id}</h2>
+            </div>
+            <span className={`status-pill status-${result.status}`}>{result.status}</span>
+          </div>
+
+          <div className="result-grid">
+            <article>
+              <span className="result-label">Type</span>
+              <strong>{result.type}</strong>
+            </article>
+            <article>
+              <span className="result-label">Created</span>
+              <strong>{formatDate(result.created_at)}</strong>
+            </article>
+            <article>
+              <span className="result-label">Jira sync</span>
+              <strong>{result.jira_synced ? `Linked to ${result.jira_issue_key}` : "Stored locally only"}</strong>
+            </article>
+            <article>
+              <span className="result-label">Developer email</span>
+              <strong>{result.email_sent ? "Sent" : "Not sent"}</strong>
+            </article>
+          </div>
+
+          <div className="result-copy">
+            <p>{result.description}</p>
+            {result.email_sent ? (
+              <p className="result-note">
+                Review email sent to {result.developer_email ?? "the configured developer"}.
+              </p>
+            ) : result.email_error ? (
+              <p className="result-note">
+                Ticket creation succeeded. No review email was sent because: {result.email_error}
+              </p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
+}
+
+function formatDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString();
 }

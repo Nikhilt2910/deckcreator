@@ -1,32 +1,23 @@
-from pathlib import Path
-
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-
-from app.core.presets import list_preset_templates
+from fastapi import APIRouter
 
 
 router = APIRouter(tags=["health"])
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
-@router.get("/", response_class=HTMLResponse)
-async def root(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={
-            "request": request,
-            "app_name": "Excel To PowerPoint API",
-            "upload_url": "/upload",
-            "report_url": "/reports/generate",
-            "preset_templates": list_preset_templates(),
-            "health_url": "/health",
-            "docs_url": "/docs",
+@router.get("/")
+async def root() -> dict[str, object]:
+    return {
+        "name": "DeckCreator Full Stack API",
+        "status": "ok",
+        "docs_url": "/docs",
+        "health_url": "/health",
+        "api_routes": {
+            "upload": "/api/upload",
+            "ticket": "/api/ticket",
+            "approve": "/api/approve",
+            "reject": "/api/reject",
         },
-    )
+    }
 
 
 @router.get("/health")

@@ -14,7 +14,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
-def run_post_approval_pipeline(ticket_id: str) -> TicketAutomationResult:
+def run_post_approval_pipeline(ticket_id: str, files_to_stage: list[str] | None = None) -> TicketAutomationResult:
     git_path = _resolve_git_executable()
     if not git_path:
         return TicketAutomationResult(
@@ -33,7 +33,8 @@ def run_post_approval_pipeline(ticket_id: str) -> TicketAutomationResult:
 
     branch_name = os.getenv("GITHUB_BRANCH") or _current_branch(git_path) or "master"
 
-    add_result = _run_command([git_path, "add", "."])
+    add_targets = files_to_stage or ["."]
+    add_result = _run_command([git_path, "add", *add_targets])
     if add_result.returncode != 0:
         return TicketAutomationResult(
             patch_applied=True,

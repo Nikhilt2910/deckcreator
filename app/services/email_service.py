@@ -12,6 +12,7 @@ from app.services.review_token_service import build_review_token
 load_dotenv()
 
 DEFAULT_DEVELOPER_EMAIL = "nikhil.t2910@gmail.com"
+DEFAULT_FRONTEND_REVIEW_URL = "http://localhost:3000"
 
 
 def send_ticket_review_email(ticket: TicketResponse) -> tuple[bool, str | None]:
@@ -24,7 +25,7 @@ def send_ticket_review_email(ticket: TicketResponse) -> tuple[bool, str | None]:
     if not smtp_host or not smtp_username or not smtp_password:
         return False, "SMTP is not configured."
 
-    review_url = ticket.review_url or f"http://127.0.0.1:8000/ticket/{ticket.id}/review"
+    review_url = ticket.review_url or _build_frontend_review_url(ticket.id)
     token = build_review_token(ticket.id)
     approve_url = f"{review_url}?token={token}&action=approve"
     reject_url = f"{review_url}?token={token}&action=reject"
@@ -85,3 +86,8 @@ def send_ticket_review_email(ticket: TicketResponse) -> tuple[bool, str | None]:
     except Exception as exc:
         return False, str(exc)
     return True, None
+
+
+def _build_frontend_review_url(ticket_id: str) -> str:
+    base_url = os.getenv("FRONTEND_APP_URL", DEFAULT_FRONTEND_REVIEW_URL).rstrip("/")
+    return f"{base_url}/review/{ticket_id}"

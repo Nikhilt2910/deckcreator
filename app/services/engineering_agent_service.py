@@ -16,6 +16,8 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 CODEBASE_ROOTS = (
+    BASE_DIR / "frontend",
+    BASE_DIR / "backend",
     BASE_DIR / "app",
     BASE_DIR / "templates",
     BASE_DIR / "static",
@@ -25,9 +27,10 @@ TOP_LEVEL_FILES = (
     BASE_DIR / "requirements.txt",
     BASE_DIR / "README.md",
 )
-ALLOWED_SUFFIXES = {".py", ".html", ".css", ".md", ".txt"}
+ALLOWED_SUFFIXES = {".py", ".html", ".css", ".md", ".txt", ".ts", ".tsx", ".js", ".jsx"}
 MAX_FILE_CHARS = 4_000
 MAX_TOTAL_CHARS = 40_000
+IGNORED_PARTS = {"__pycache__", ".next", "node_modules", ".git", ".venv"}
 
 ENGINEERING_PROMPT = """You are a senior engineer.
 
@@ -148,6 +151,8 @@ def _build_targeted_snapshot(files: list[str]) -> str:
         file_path = BASE_DIR / normalized
         if not file_path.exists() or not file_path.is_file():
             continue
+        if any(part in IGNORED_PARTS for part in file_path.parts):
+            continue
         if file_path.suffix.lower() not in ALLOWED_SUFFIXES:
             continue
         content = file_path.read_text(encoding="utf-8", errors="ignore")
@@ -190,6 +195,8 @@ def _iter_codebase_files() -> list[Path]:
         if not root.exists():
             continue
         for file_path in sorted(root.rglob("*")):
+            if any(part in IGNORED_PARTS for part in file_path.parts):
+                continue
             if file_path.is_file() and file_path.suffix.lower() in ALLOWED_SUFFIXES:
                 files.append(file_path)
     for file_path in TOP_LEVEL_FILES:
@@ -200,6 +207,10 @@ def _iter_codebase_files() -> list[Path]:
 
 def _try_generate_literal_text_resolution(ticket_description: str) -> TicketResolution | None:
     normalized = ticket_description.lower()
+    block_resolution = _try_generate_named_block_resolution(ticket_description)
+    if block_resolution is not None:
+        return block_resolution
+
     additive_resolution = _try_generate_literal_addition_resolution(ticket_description)
     if additive_resolution is not None:
         return additive_resolution
@@ -215,7 +226,7 @@ def _try_generate_literal_text_resolution(ticket_description: str) -> TicketReso
         if "tests" in file_path.parts:
             continue
         original = _read_file_preserving_newlines(file_path)
-        if target_text not in original:
+        if target_text not in original and target_text.lower() not in original.lower():
             continue
         updated = _remove_literal_occurrences(original, target_text)
         if updated == original:
@@ -280,12 +291,37 @@ def _select_literal_candidate(
         return candidates[0]
 
     normalized = ticket_description.lower()
+    route_preference = _preferred_frontend_route(normalized)
+    if route_preference is not None:
+        route_matches = [
+            candidate for candidate in candidates if route_preference in candidate[0].as_posix().lower()
+        ]
+        if len(route_matches) == 1:
+            return route_matches[0]
+
     ui_keywords = ("ui", "page", "screen", "section", "block", "button", "text", "label")
     if any(keyword in normalized for keyword in ui_keywords):
+        frontend_candidates = [candidate for candidate in candidates if "frontend" in candidate[0].parts]
+        if len(frontend_candidates) == 1:
+            return frontend_candidates[0]
+
         template_candidates = [candidate for candidate in candidates if "templates" in candidate[0].parts]
         if len(template_candidates) == 1:
             return template_candidates[0]
 
+    return None
+
+
+def _preferred_frontend_route(normalized_description: str) -> str | None:
+    route_keywords = {
+        "frontend/app/tickets/": ("ticket", "tickets", "support", "feedback"),
+        "frontend/app/upload/": ("upload", "reference file", "inputs", "deck"),
+        "frontend/app/status/": ("status", "tracking", "track"),
+        "frontend/app/review/": ("review", "approve", "reject"),
+    }
+    for route, keywords in route_keywords.items():
+        if any(keyword in normalized_description for keyword in keywords):
+            return route
     return None
 
 
@@ -298,6 +334,14 @@ def _remove_literal_occurrences(source_text: str, target_text: str) -> str:
     ]
     for pattern in patterns:
         updated = re.sub(pattern, "", updated)
+    if updated == source_text:
+        patterns_ci = [
+            rf",\s*`?\.?{re.escape(target_text)}`?",
+            rf"`?\.?{re.escape(target_text)}`?\s*,\s*",
+            rf"`?{re.escape(target_text)}`?",
+        ]
+        for pattern in patterns_ci:
+            updated = re.sub(pattern, "", updated, flags=re.IGNORECASE)
     return updated
 
 
@@ -373,6 +417,103 @@ def _extract_literal_target(ticket_description: str) -> str | None:
         match = re.search(pattern, normalized, flags=re.IGNORECASE)
         if match:
             return match.group(1).strip(" ,.:;")
+    return None
+
+
+def _try_generate_named_block_resolution(ticket_description: str) -> TicketResolution | None:
+    normalized = ticket_description.lower()
+    if not any(keyword in normalized for keyword in ("remove", "delete", "hide")):
+        return None
+    if not any(keyword in normalized for keyword in ("block", "section", "card", "panel")):
+        return None
+
+    target_text = _extract_literal_target(ticket_description)
+    if not target_text:
+        return None
+    if len(target_text.strip()) < 4 or " " not in target_text.strip():
+        return None
+
+    candidates: list[tuple[Path, str, str]] = []
+    for file_path in _iter_codebase_files():
+        if "tests" in file_path.parts:
+            continue
+        original = _read_file_preserving_newlines(file_path)
+        updated = _remove_named_block(original, target_text)
+        if updated == original:
+            continue
+        candidates.append((file_path, original, updated))
+
+    candidate = _select_literal_candidate(candidates, ticket_description)
+    if candidate is None and len(candidates) == 1:
+        candidate = candidates[0]
+    if candidate is None:
+        return None
+
+    file_path, original, updated = candidate
+    relative_path = file_path.relative_to(BASE_DIR).as_posix()
+    patch = "".join(
+        unified_diff(
+            original.splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile=f"a/{relative_path}",
+            tofile=f"b/{relative_path}",
+        )
+    )
+    is_valid, _ = validate_unified_diff(patch)
+    if not is_valid:
+        return None
+
+    return TicketResolution(
+        files=[relative_path],
+        patch=patch,
+        explanation=(
+            f'The ticket requests removing the UI block containing "{target_text}". '
+            f'The resolver found that block in `{relative_path}` and removed the enclosing JSX/HTML section.'
+        ),
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
+def _remove_named_block(source_text: str, target_text: str) -> str:
+    lines = source_text.splitlines(keepends=True)
+    lower_target = target_text.lower()
+
+    for index, line in enumerate(lines):
+        if lower_target not in line.lower():
+            continue
+
+        start = _find_block_start(lines, index)
+        if start is None:
+            continue
+        end = _find_block_end(lines, start)
+        if end is None or end < start:
+            continue
+
+        updated_lines = lines[:start] + lines[end + 1 :]
+        updated = "".join(updated_lines)
+        if updated != source_text:
+            return updated
+
+    return source_text
+
+
+def _find_block_start(lines: list[str], index: int) -> int | None:
+    jsx_pattern = re.compile(r"^\s*<(section|aside|article|div)\b")
+    for current in range(index, -1, -1):
+        if jsx_pattern.search(lines[current]):
+            return current
+    return None
+
+
+def _find_block_end(lines: list[str], start: int) -> int | None:
+    depth = 0
+    for current in range(start, len(lines)):
+        opening = len(re.findall(r"<(section|aside|article|div)\b", lines[current]))
+        closing = len(re.findall(r"</(section|aside|article|div)\b", lines[current]))
+        self_closing = len(re.findall(r"<(section|aside|article|div)\b[^>]+/>", lines[current]))
+        depth += opening - closing - self_closing
+        if depth <= 0:
+            return current
     return None
 
 

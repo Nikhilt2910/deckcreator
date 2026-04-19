@@ -11,8 +11,9 @@ export default function UploadPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    const form = event.currentTarget;
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const excelFile = formData.get("excel_file");
     const referenceFile = formData.get("reference_file");
 
@@ -25,7 +26,7 @@ export default function UploadPage() {
       setIsSubmitting(true);
       const result = await uploadFiles(excelFile, referenceFile);
       setMessage(JSON.stringify(result, null, 2));
-      event.currentTarget.reset();
+      form.reset();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Upload failed.");
     } finally {

@@ -19,9 +19,6 @@ export default function HomePage() {
               <Link className="button" href="/upload">
                 Start a deck
               </Link>
-              <Link className="button secondary" href="/status">
-                Track a run
-              </Link>
             </div>
           </div>
           <div className="hero-console">

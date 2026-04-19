@@ -16,9 +16,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.main import app
-from app.services.engineering_agent_service import _try_generate_literal_text_resolution
+from app.services.engineering_agent_service import (
+    _build_codebase_snapshot,
+    _try_generate_literal_text_resolution,
+)
 from app.services.patch_service import apply_unified_diff, validate_unified_diff
 from app.services.review_token_service import build_review_token
+from app.services.email_service import _build_frontend_review_url
 from app.schemas.ticket import TicketAutomationResult, TicketResolution, TicketReviewOutcome
 
 
@@ -30,9 +34,10 @@ class UploadApiTestCase(unittest.TestCase):
         response = self.client.get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("text/html", response.headers["content-type"])
-        self.assertIn("Generate Presentation", response.text)
-        self.assertIn("Case Study", response.text)
+        self.assertIn("application/json", response.headers["content-type"])
+        payload = response.json()
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["api_routes"]["ticket"], "/api/ticket")
 
     def test_upload_endpoint_saves_excel_and_template(self) -> None:
         excel_bytes = self._build_excel_file()
@@ -220,6 +225,7 @@ class UploadApiTestCase(unittest.TestCase):
             self.assertEqual(payload["resolution"]["files"], ["app/services/ticket_service.py"])
             self.assertEqual(payload["status"], "pending")
             self.assertTrue(payload["email_sent"])
+            self.assertIn("/review/", payload["review_url"])
             self.assertTrue(tickets_path.exists())
 
             stored_payload = json.loads(tickets_path.read_text(encoding="utf-8"))
@@ -421,6 +427,79 @@ class UploadApiTestCase(unittest.TestCase):
         self.assertFalse(payload["review_outcome"]["applied"])
         self.assertIn("rolled back", payload["review_outcome"]["message"])
 
+    def test_ticket_approve_regenerates_resolution_when_initial_patch_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tickets_path = Path(temp_dir) / "tickets.json"
+            tickets_path.write_text(json.dumps([{
+                "id": "ticketrefresh",
+                "type": "bug",
+                "description": 'remove the "WHAT HAPPENS NEXT" block from the Support tab',
+                "created_at": "2026-04-18T00:00:00Z",
+                "jira_synced": False,
+                "jira_issue_key": None,
+                "resolution": {
+                    "files": ["frontend/app/tickets/page.tsx"],
+                    "patch": "--- a/frontend/app/tickets/page.tsx\n+++ b/frontend/app/tickets/page.tsx\n@@ -1,1 +1,1 @@\n-old\n+new\n",
+                    "explanation": "Old patch.",
+                    "generated_at": "2026-04-18T00:00:00Z",
+                },
+                "status": "pending",
+                "developer_email": "nikhil.t2910@gmail.com",
+                "review_url": "http://localhost:3000/review/ticketrefresh",
+                "email_sent": True,
+                "email_error": None,
+                "review_outcome": None,
+            }]), encoding="utf-8")
+            refreshed_resolution = TicketResolution(
+                files=["frontend/app/tickets/page.tsx"],
+                patch="--- a/frontend/app/tickets/page.tsx\n+++ b/frontend/app/tickets/page.tsx\n@@ -78,7 +78,7 @@\n-            <div className=\"console-label\">What happens next</div>\n+            <div className=\"console-label\"></div>\n",
+                explanation="Refresh patch against current frontend source.",
+                generated_at="2026-04-18T00:00:00Z",
+            )
+            with patch("app.services.ticket_service.TICKETS_FILE", tickets_path), patch(
+                "app.services.ticket_service.apply_unified_diff",
+                side_effect=[
+                    TicketReviewOutcome(
+                        applied=False,
+                        message="patch does not apply",
+                        applied_at="2026-04-18T00:00:00Z",
+                    ),
+                    TicketReviewOutcome(
+                        applied=True,
+                        message="Patch applied successfully.",
+                        applied_at="2026-04-18T00:00:00Z",
+                    ),
+                ],
+            ), patch(
+                "app.services.ticket_service.generate_ticket_resolution",
+                return_value=refreshed_resolution,
+            ), patch(
+                "app.services.ticket_service.run_post_approval_pipeline",
+                return_value=TicketAutomationResult(
+                    patch_applied=True,
+                    tests_passed=True,
+                    pushed=True,
+                    branch="master",
+                    commit_sha="abc123",
+                    message="Patch applied, tests passed, and changes were pushed to GitHub.",
+                    completed_at="2026-04-18T00:00:00Z",
+                ),
+            ):
+                token = build_review_token("ticketrefresh")
+                response = self.client.post(f"/ticket/ticketrefresh/approve?token={token}")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["review_outcome"]["applied"])
+        self.assertIn("regenerated", payload["review_outcome"]["message"].lower())
+        self.assertEqual(payload["resolution"]["explanation"], refreshed_resolution.explanation)
+
+    def test_frontend_review_url_builder_uses_frontend_base(self) -> None:
+        with patch.dict("os.environ", {"FRONTEND_APP_URL": "http://localhost:3000"}):
+            review_url = _build_frontend_review_url("ticket123")
+
+        self.assertEqual(review_url, "http://localhost:3000/review/ticket123")
+
     def test_invalid_review_token_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             tickets_path = Path(temp_dir) / "tickets.json"
@@ -493,9 +572,9 @@ class UploadApiTestCase(unittest.TestCase):
         )
 
         self.assertIsNotNone(resolution)
-        self.assertEqual(resolution.files, ["templates/index.html"])
+        self.assertEqual(resolution.files, ["frontend/app/upload/page.tsx"])
         self.assertIn(".pdf", resolution.patch)
-        self.assertIn("Reference file:", resolution.patch)
+        self.assertIn("reference_file", resolution.patch)
         self.assertIn('accept="', resolution.patch)
 
     def test_literal_text_resolution_supports_unquoted_text(self) -> None:
@@ -504,7 +583,7 @@ class UploadApiTestCase(unittest.TestCase):
         )
 
         self.assertIsNotNone(resolution)
-        self.assertEqual(resolution.files, ["templates/index.html"])
+        self.assertEqual(resolution.files, ["frontend/app/upload/page.tsx"])
         self.assertIn(".pdf", resolution.patch)
 
     def test_literal_text_resolution_supports_addition_with_single_quotes(self) -> None:
@@ -526,6 +605,20 @@ class UploadApiTestCase(unittest.TestCase):
         self.assertIsNotNone(resolution)
         self.assertEqual(resolution.files, ["templates/index.html"])
         self.assertIn(".potm", resolution.patch)
+
+    def test_codebase_snapshot_includes_frontend_files(self) -> None:
+        snapshot = _build_codebase_snapshot()
+
+        self.assertIn("FILE: frontend/app/tickets/page.tsx", snapshot)
+
+    def test_literal_text_resolution_handles_frontend_block_removal(self) -> None:
+        resolution = _try_generate_literal_text_resolution(
+            'remove the "Support lane" block from the Support tab'
+        )
+
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution.files, ["frontend/app/tickets/page.tsx"])
+        self.assertIn("Support lane", resolution.patch)
 
     @staticmethod
     def _build_excel_file() -> BytesIO:

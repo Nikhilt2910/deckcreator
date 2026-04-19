@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import health, presentations, reports, tickets, uploads
 from backend.app.api import approval, ticket, upload
-from backend.app.core.config import FRONTEND_ORIGIN
+from backend.app.core.config import FRONTEND_ORIGINS
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -21,7 +21,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN],
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
