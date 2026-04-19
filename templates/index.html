@@ -35,7 +35,7 @@
 
         <label class="feedback-field">
             <span>Description</span>
-            <textarea id="ticket_description" name="description" rows="6" placeholder="Describe the bug or feature request..." required></textarea>
+            <textarea id="ticket_description" name="description" rows="6" placeholder="Describe  bug or feature request..." required></textarea>
         </label>
 
         <div class="feedback-actions">
@@ -64,7 +64,7 @@
                 </span>
             </h1>
             <p class="lead">
-                Upload your Excel workbook and a PowerPoint or PDF reference. The platform parses the file, generates AI insights,
+                Upload your Excel workbook and a PowerPoint or PDF reference. The platform parses  file, generates AI insights,
                 builds a polished presentation, and returns a downloadable deck in one flow.
             </p>
 
@@ -89,7 +89,7 @@
                 <article class="metric-card">
                     <span class="metric-step">03</span>
                     <h2>Present</h2>
-                    <p>Slides are generated to match the template's style and returned as a `.pptx` download.</p>
+                    <p>Slides are generated to match  template's style and returned as a `.pptx` download.</p>
                 </article>
             </div>
         </aside>
@@ -123,10 +123,10 @@
             <p class="panel-kicker">Process</p>
             <h2>One endpoint.</h2>
             <ol class="process-list">
-                <li>Process the Excel workbook into structured JSON.</li>
+                <li>Process  Excel workbook into structured JSON.</li>
                 <li>Generate insights, trends, risks, and an executive summary with OpenAI.</li>
                 <li>Create a professionally formatted PowerPoint deck from your reference file and workbook data.</li>
-                <li>Return the finished `.pptx` file as a direct download.</li>
+                <li>Return  finished `.pptx` file as a direct download.</li>
             </ol>
         </article>
 
@@ -144,7 +144,7 @@
         <div class="generator-head">
             <div>
                 <p class="eyebrow">Report Generator</p>
-                <h2>Build the deck</h2>
+                <h2>Build  deck</h2>
             </div>
         </div>
 
@@ -261,7 +261,7 @@
             );
             form.reset();
         } catch (error) {
-            setStatus("error", error.message || "Unable to generate the presentation.");
+            setStatus("error", error.message || "Unable to generate  presentation.");
         } finally {
             submitButton.disabled = false;
         }
@@ -332,7 +332,7 @@
                 ? `Jira issue created: <code>${data.jira_issue_key}</code>.`
                 : "Stored locally. Jira sync is not configured yet.";
             const emailMessage = data.email_sent
-                ? "<br>Review email sent to the developer."
+                ? "<br>Review email sent to  developer."
                 : data.email_error ? `<br>Email not sent: ${data.email_error}` : "";
             setFeedbackStatus("success", `<strong>Ticket submitted.</strong><br>${syncMessage}${emailMessage}`);
             feedbackForm.reset();

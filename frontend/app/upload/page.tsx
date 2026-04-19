@@ -34,28 +34,55 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="card">
-      <h1>Upload source files</h1>
-      <p className="status-text">
-        This page sends files directly to the FastAPI backend at
-        {" "}
-        <code>{process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}</code>.
-      </p>
-      <form className="stack" onSubmit={handleSubmit}>
-        <div className="field">
-          <label htmlFor="excel_file">Excel file</label>
-          <input id="excel_file" name="excel_file" type="file" accept=".xlsx,.xls,.xlsm" required />
-        </div>
-        <div className="field">
-          <label htmlFor="reference_file">PPT template or reference file</label>
-          <input id="reference_file" name="reference_file" type="file" accept=".pptx,.potx,.pdf" required />
-        </div>
-        <div className="actions">
-          <button className="button" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Uploading..." : "Upload files"}
-          </button>
-        </div>
-      </form>
+    <div className="stack">
+      <section className="page-hero">
+        <div className="eyebrow">Create a deck</div>
+        <h1>Upload the data source and the visual reference.</h1>
+        <p>
+          Excel drives the content. PPTX, POTX, or PDF shape the tone. The backend
+          keeps the orchestration and the output remains editable.
+        </p>
+      </section>
+
+      <section className="workspace">
+        <form className="studio-form" onSubmit={handleSubmit}>
+          <div className="field">
+            <label htmlFor="excel_file">Excel workbook</label>
+            <input id="excel_file" name="excel_file" type="file" accept=".xlsx,.xls,.xlsm" required />
+            <span className="field-note">Upload the business data source used for analysis and slide content.</span>
+          </div>
+          <div className="field">
+            <label htmlFor="reference_file">PPT, POTX, or PDF reference</label>
+            <input id="reference_file" name="reference_file" type="file" accept=".pptx,.potx,.pdf" required />
+            <span className="field-note">Use PPTX for the best layout and theme transfer. PDF works as a style cue.</span>
+          </div>
+          <div className="actions">
+            <button className="button" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Sending files..." : "Send to backend"}
+            </button>
+          </div>
+        </form>
+
+        <aside className="side-rail">
+          <div className="console-card">
+            <div className="console-label">Recommended reference order</div>
+            <ul className="signal-list">
+              <li>1. PPTX or POTX template</li>
+              <li>2. Google Slides exported to PPTX</li>
+              <li>3. PDF for visual direction only</li>
+            </ul>
+          </div>
+          <div className="console-card accent">
+            <div className="console-label">Connected backend</div>
+            <p>
+              Requests are sent to
+              {" "}
+              <code>{process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}</code>.
+            </p>
+          </div>
+        </aside>
+      </section>
+
       {message ? <pre className="result">{message}</pre> : null}
     </div>
   );
