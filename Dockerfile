@@ -15,4 +15,4 @@ RUN mkdir -p /app/data/output /app/data/uploads/excel /app/data/uploads/template
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["python", "run_server.py"]
