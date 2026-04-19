@@ -15,4 +15,4 @@ RUN mkdir -p /app/data/output /app/data/uploads/excel /app/data/uploads/template
 
 EXPOSE 8000
 
-CMD ["python", "run_server.py"]
+CMD ["python", "-u", "run_server.py"]
