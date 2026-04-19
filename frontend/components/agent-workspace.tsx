@@ -34,7 +34,7 @@ type ChatMessage = {
 };
 
 const EXCEL_EXTENSIONS = [".xlsx", ".xls", ".xlsm"];
-const REFERENCE_EXTENSIONS = [".pptx", ".potx", ".pdf"];
+const REFERENCE_EXTENSIONS = [".pptx", ".", ".pdf"];
 const SUGGESTIONS = [
   "What are the latest retail media trends this quarter?",
   "Summarize current AI presentation design tools and cite sources.",
@@ -414,7 +414,7 @@ export function AgentWorkspace() {
           type="file"
           className="hidden-input"
           multiple
-          accept=".xlsx,.xls,.xlsm,.pptx,.potx,.pdf"
+          accept=".xlsx,.xls,.xlsm,.pptx,.pdf"
           onChange={handleFileSelection}
         />
 
