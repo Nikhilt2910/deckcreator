@@ -41,10 +41,10 @@ export default function TicketsPage() {
     <div className="stack">
       <section className="page-hero">
         <div className="eyebrow">Support lane</div>
-        <h1>Report a product issue without leaving the studio.</h1>
+        <h1>Report a product issue without leaving  studio.</h1>
         <p>
-          Feature requests and bugs go through the backend, sync to Jira, and can
-          trigger the developer approval workflow behind the scenes.
+          Feature requests and bugs go through  backend, sync to Jira, and can
+          trigger  developer approval workflow behind  scenes.
         </p>
       </section>
 
@@ -64,7 +64,7 @@ export default function TicketsPage() {
             <textarea
               id="description"
               name="description"
-              placeholder="Describe what should change in the product, or what is broken."
+              placeholder="Describe what should change in  product, or what is broken."
               required
             />
             <span className="field-note">Clear, direct requests create better engineering resolutions.</span>
@@ -123,7 +123,7 @@ export default function TicketsPage() {
             <p>{result.description}</p>
             {result.email_sent ? (
               <p className="result-note">
-                Review email sent to {result.developer_email ?? "the configured developer"}.
+                Review email sent to {result.developer_email ?? " configured developer"}.
               </p>
             ) : result.email_error ? (
               <p className="result-note">
