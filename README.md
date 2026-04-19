@@ -163,6 +163,17 @@ Optional:
 - `GITHUB_BRANCH`
 - `OPENAI_ENGINEERING_MODEL`
 - `OPENAI_ANALYSIS_MODEL`
+- `FRONTEND_APP_URL`
+
+Recommended model defaults:
+
+- `OPENAI_ANALYSIS_MODEL=gpt-5.2`
+- `OPENAI_ENGINEERING_MODEL=gpt-5.2-codex`
+
+These defaults are aligned with the current OpenAI API model docs, which recommend `gpt-5.2` for most API usage and position `gpt-5.2-codex` as the upgraded coding model for agentic coding tasks:
+
+- https://platform.openai.com/docs/guides/latest-model
+- https://platform.openai.com/docs/models/gpt-5.2-codex
 
 Deployment flow:
 

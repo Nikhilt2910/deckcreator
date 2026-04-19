@@ -620,6 +620,17 @@ class UploadApiTestCase(unittest.TestCase):
         self.assertEqual(resolution.files, ["frontend/app/tickets/page.tsx"])
         self.assertIn("Support lane", resolution.patch)
 
+    def test_literal_text_resolution_removes_full_support_side_rail_block(self) -> None:
+        resolution = _try_generate_literal_text_resolution(
+            'Remove the side-rail block in the Support tab that contains these items: "1. Ticket stored locally", '
+            '"2. Jira issue created", "3. Resolution drafted", "4. Developer review email sent when valid".'
+        )
+
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution.files, ["frontend/app/tickets/page.tsx"])
+        self.assertIn('-        <aside className="side-rail">', resolution.patch)
+        self.assertIn('-              <li>4. Developer review email sent when valid</li>', resolution.patch)
+
     @staticmethod
     def _build_excel_file() -> BytesIO:
         buffer = BytesIO()
