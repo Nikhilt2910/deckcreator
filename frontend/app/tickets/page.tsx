@@ -77,14 +77,6 @@ export default function TicketsPage() {
         </form>
 
         <aside className="side-rail">
-          <div className="console-card">
-            <ul className="signal-list">
-              <li>1. Ticket stored locally</li>
-              <li>2. Jira issue created</li>
-              <li>3. Resolution drafted</li>
-              <li>4. Developer review email sent when valid</li>
-            </ul>
-          </div>
         </aside>
       </section>
 

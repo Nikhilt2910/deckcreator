@@ -10,6 +10,7 @@ from app.services.ticket_service import (
     approve_ticket,
     create_ticket,
     get_ticket,
+    get_ticket_automation_payload,
     regenerate_ticket_resolution,
     reject_ticket,
 )
@@ -28,6 +29,13 @@ async def submit_ticket(payload: TicketCreate) -> TicketResponse:
 @router.post("/ticket/{ticket_id}/resolution", response_model=TicketResponse)
 async def regenerate_resolution(ticket_id: str) -> TicketResponse:
     return await regenerate_ticket_resolution(ticket_id)
+
+
+@router.get("/ticket/{ticket_id}/automation")
+async def get_automation_payload(ticket_id: str, token: str = Query(...)) -> dict[str, object]:
+    if not validate_review_token(ticket_id, token):
+        raise HTTPException(status_code=403, detail="Invalid automation token.")
+    return get_ticket_automation_payload(ticket_id, token)
 
 
 @router.get("/ticket/{ticket_id}/review", response_class=HTMLResponse)

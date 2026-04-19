@@ -76,7 +76,7 @@ def generate_ticket_resolution(ticket_description: str) -> TicketResolution:
         return literal_resolution
 
     client = OpenAI(api_key=api_key)
-    model = os.getenv("OPENAI_ENGINEERING_MODEL", "gpt-5.2-codex")
+    model = os.getenv("OPENAI_ENGINEERING_MODEL", "gpt-5.4")
     codebase_snapshot = _build_codebase_snapshot()
     validation_error = ""
     previous_files: list[str] = []
@@ -427,6 +427,10 @@ def _try_generate_named_block_resolution(ticket_description: str) -> TicketResol
     if not any(keyword in normalized for keyword in ("block", "section", "card", "panel")):
         return None
 
+    direct_container_resolution = _try_generate_direct_container_resolution(ticket_description)
+    if direct_container_resolution is not None:
+        return direct_container_resolution
+
     target_text = _extract_literal_target(ticket_description)
     if not target_text:
         return None
@@ -473,6 +477,56 @@ def _try_generate_named_block_resolution(ticket_description: str) -> TicketResol
         explanation=(
             f'The ticket requests removing the UI block containing "{target_text}". '
             f'The resolver found that block in `{relative_path}` and removed the enclosing JSX/HTML section.'
+        ),
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
+def _try_generate_direct_container_resolution(ticket_description: str) -> TicketResolution | None:
+    normalized = ticket_description.lower()
+    if "support" not in normalized and "ticket" not in normalized:
+        return None
+
+    container_markers = {
+        "side-rail": '<aside className="side-rail">',
+        "signal-list": '<ul className="signal-list">',
+        "console-card": '<div className="console-card">',
+    }
+    marker = next((value for key, value in container_markers.items() if key in normalized), None)
+    if marker is None:
+        return None
+
+    file_path = BASE_DIR / "frontend" / "app" / "tickets" / "page.tsx"
+    if not file_path.exists():
+        return None
+
+    original = _read_file_preserving_newlines(file_path)
+    if marker not in original:
+        return None
+
+    updated = _remove_named_block(original, marker, ticket_description)
+    if updated == original:
+        return None
+
+    relative_path = file_path.relative_to(BASE_DIR).as_posix()
+    patch = "".join(
+        unified_diff(
+            original.splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile=f"a/{relative_path}",
+            tofile=f"b/{relative_path}",
+        )
+    )
+    is_valid, _ = validate_unified_diff(patch)
+    if not is_valid:
+        return None
+
+    return TicketResolution(
+        files=[relative_path],
+        patch=patch,
+        explanation=(
+            "The ticket refers to a named UI container in the Support tab, so the resolver removes the entire matching "
+            f"container from `{relative_path}` rather than deleting individual text nodes."
         ),
         generated_at=datetime.now(timezone.utc),
     )

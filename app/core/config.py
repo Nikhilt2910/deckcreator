@@ -1,8 +1,21 @@
+import os
+import tempfile
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
+
+
+def _resolve_data_dir() -> Path:
+    configured_root = os.getenv("APP_DATA_ROOT")
+    if configured_root:
+        return Path(configured_root)
+    if os.getenv("VERCEL"):
+        return Path(tempfile.gettempdir()) / "deckcreator-data"
+    return BASE_DIR / "data"
+
+
+DATA_DIR = _resolve_data_dir()
 UPLOADS_DIR = DATA_DIR / "uploads"
 EXCEL_DIR = UPLOADS_DIR / "excel"
 TEMPLATE_DIR = UPLOADS_DIR / "templates"

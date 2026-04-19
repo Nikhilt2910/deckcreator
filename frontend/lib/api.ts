@@ -44,6 +44,11 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+export type GeneratedDeckResult = {
+  blob: Blob;
+  filename: string;
+};
+
 export async function uploadFiles(excelFile: File, referenceFile: File): Promise<unknown> {
   const formData = new FormData();
   formData.append("excel_file", excelFile);
@@ -55,6 +60,29 @@ export async function uploadFiles(excelFile: File, referenceFile: File): Promise
   });
 
   return parseResponse(response);
+}
+
+export async function generateReport(excelFile: File, referenceFile: File): Promise<GeneratedDeckResult> {
+  const formData = new FormData();
+  formData.append("excel_file", excelFile);
+  formData.append("reference_file", referenceFile);
+
+  const response = await fetch(`${API_BASE_URL}/reports/generate`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed with status ${response.status}`);
+  }
+
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const fileNameMatch = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = fileNameMatch?.[1] ?? "generated-report.pptx";
+  const blob = await response.blob();
+
+  return { blob, filename };
 }
 
 export async function createTicket(type: TicketType, description: string): Promise<TicketResponse> {

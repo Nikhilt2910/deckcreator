@@ -11,6 +11,11 @@ from app.core.config import TICKETS_FILE
 from app.schemas.ticket import TicketCreate, TicketResolution, TicketResponse, TicketReviewOutcome
 from app.services.email_service import DEFAULT_DEVELOPER_EMAIL, send_ticket_review_email
 from app.services.engineering_agent_service import generate_ticket_resolution
+from app.services.github_automation_service import (
+    build_automation_payload,
+    dispatch_github_automation,
+    should_use_github_actions_automation,
+)
 from app.services.patch_service import apply_unified_diff, revert_unified_diff
 from app.services.repo_automation_service import run_post_approval_pipeline
 
@@ -59,9 +64,26 @@ def get_ticket(ticket_id: str) -> TicketResponse:
     return ticket
 
 
+def get_ticket_automation_payload(ticket_id: str, token: str) -> dict[str, object]:
+    ticket, _, _ = _load_ticket(ticket_id)
+    return build_automation_payload(ticket, token)
+
+
 async def approve_ticket(ticket_id: str) -> TicketResponse:
     ticket, index, tickets = _load_ticket(ticket_id)
     ticket.status = "approved"
+    if should_use_github_actions_automation():
+        if ticket.resolution is None:
+            ticket.resolution = _safe_generate_resolution(ticket.description)
+        ticket.review_outcome = TicketReviewOutcome(
+            applied=False,
+            message="Developer approved the change. GitHub Actions automation will apply, test, and push the patch.",
+            applied_at=datetime.now(timezone.utc),
+        )
+        ticket.automation_result = await dispatch_github_automation(ticket)
+        _write_ticket(ticket, index, tickets)
+        return ticket
+
     ticket.review_outcome = _apply_resolution_with_refresh(ticket)
     if ticket.review_outcome.applied:
         ticket.automation_result = run_post_approval_pipeline(

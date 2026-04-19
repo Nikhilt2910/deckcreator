@@ -24,7 +24,7 @@ def analyze_data(data_json: dict[str, Any] | list[Any] | str) -> dict[str, Any]:
         raise ValueError("OPENAI_API_KEY is not set.")
 
     client = OpenAI(api_key=api_key)
-    model = os.getenv("OPENAI_ANALYSIS_MODEL", "gpt-5.2")
+    model = os.getenv("OPENAI_ANALYSIS_MODEL", "gpt-5.4")
     payload = _normalize_data_json(data_json)
 
     response = client.responses.parse(

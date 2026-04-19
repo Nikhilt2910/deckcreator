@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-import { uploadFiles } from "@/lib/api";
+import { generateReport } from "@/lib/api";
 
 export default function UploadPage() {
   const [message, setMessage] = useState<string>("");
@@ -24,11 +24,19 @@ export default function UploadPage() {
 
     try {
       setIsSubmitting(true);
-      const result = await uploadFiles(excelFile, referenceFile);
-      setMessage(JSON.stringify(result, null, 2));
+      const { blob, filename } = await generateReport(excelFile, referenceFile);
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(downloadUrl);
+      setMessage(`Presentation generated successfully. Downloaded ${filename}.`);
       form.reset();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Upload failed.");
+      setMessage(error instanceof Error ? error.message : "Report generation failed.");
     } finally {
       setIsSubmitting(false);
     }
@@ -59,7 +67,7 @@ export default function UploadPage() {
           </div>
           <div className="actions">
             <button className="button" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Sending files..." : "Send to backend"}
+              {isSubmitting ? "Submitting..." : "Submit"}
             </button>
           </div>
         </form>

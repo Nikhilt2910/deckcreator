@@ -1,0 +1,75 @@
+name: Approved Ticket Automation
+
+on:
+  repository_dispatch:
+    types:
+      - approved-ticket
+
+permissions:
+  contents: write
+
+jobs:
+  apply-approved-ticket:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.branch || 'master' }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Fetch automation payload
+        env:
+          BACKEND_URL: ${{ github.event.client_payload.backend_url }}
+          TICKET_ID: ${{ github.event.client_payload.ticket_id }}
+          TOKEN: ${{ github.event.client_payload.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          backend_url = os.environ["BACKEND_URL"].rstrip("/")
+          ticket_id = os.environ["TICKET_ID"]
+          token = os.environ["TOKEN"]
+          url = f"{backend_url}/api/ticket/{ticket_id}/automation?token={token}"
+          with urllib.request.urlopen(url, timeout=30) as response:
+              payload = json.loads(response.read().decode("utf-8"))
+          with open("ticket_payload.json", "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, indent=2)
+          with open("ticket.patch", "w", encoding="utf-8", newline="") as handle:
+              handle.write(payload["patch"])
+          PY
+
+      - name: Apply patch
+        run: |
+          git apply --check --ignore-space-change ticket.patch
+          git apply --ignore-space-change ticket.patch
+
+      - name: Run backend tests
+        run: python -m unittest tests.test_upload
+
+      - name: Commit and push
+        env:
+          TICKET_ID: ${{ github.event.client_payload.ticket_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Apply approved ticket ${TICKET_ID}" || echo "No changes to commit"
+          git push origin HEAD:${{ github.event.client_payload.branch || 'master' }}

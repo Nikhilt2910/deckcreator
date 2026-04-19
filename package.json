@@ -1,0 +1,13 @@
+{
+  "name": "deckcreator-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node-based PowerPoint renderer for DeckCreator",
+  "scripts": {
+    "generate:deck": "node deck_renderer/generateDeck.js"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "pptxgenjs": "^4.0.1"
+  }
+}

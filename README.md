@@ -125,6 +125,7 @@ The backend keeps the existing routes and also exposes:
 - `POST /api/upload`
 - `POST /api/ticket`
 - `GET /api/ticket/{ticket_id}`
+- `GET /api/ticket/{ticket_id}/automation`
 - `GET /api/approve`
 - `GET /api/reject`
 
@@ -161,19 +162,35 @@ Optional:
 
 - `GITHUB_REPO_URL`
 - `GITHUB_BRANCH`
+- `GITHUB_AUTOMATION_MODE`
 - `OPENAI_ENGINEERING_MODEL`
 - `OPENAI_ANALYSIS_MODEL`
 - `FRONTEND_APP_URL`
 
 Recommended model defaults:
 
-- `OPENAI_ANALYSIS_MODEL=gpt-5.2`
-- `OPENAI_ENGINEERING_MODEL=gpt-5.2-codex`
+- `OPENAI_ANALYSIS_MODEL=gpt-5.4`
+- `OPENAI_ENGINEERING_MODEL=gpt-5.4`
 
-These defaults are aligned with the current OpenAI API model docs, which recommend `gpt-5.2` for most API usage and position `gpt-5.2-codex` as the upgraded coding model for agentic coding tasks:
+These defaults are aligned with the current OpenAI API model docs, where `gpt-5.4` appears in the current official model catalog:
 
-- https://platform.openai.com/docs/guides/latest-model
-- https://platform.openai.com/docs/models/gpt-5.2-codex
+- https://platform.openai.com/docs/models
+
+## Vercel + GitHub Automation
+
+For a Vercel deployment, the backend should not perform local `git apply` / `git push` work itself. This repo now supports a GitHub Actions mode for approvals:
+
+- set `GITHUB_AUTOMATION_MODE=actions`
+- set `GITHUB_REPO_URL`
+- set `GITHUB_TOKEN`
+- ensure the repository contains [.github/workflows/approved-ticket.yml](/C:/Users/nikhi/PycharmProjects/PythonProject/.github/workflows/approved-ticket.yml)
+
+When a developer approves from email:
+
+1. the backend queues a GitHub `repository_dispatch`
+2. GitHub Actions fetches the approved patch from `/api/ticket/{ticket_id}/automation`
+3. the workflow applies the patch, runs tests, commits, and pushes to the configured branch
+4. if Vercel is connected to that repo and branch, Vercel deploys the pushed commit automatically
 
 Deployment flow:
 
