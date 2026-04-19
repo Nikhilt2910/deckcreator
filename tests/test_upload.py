@@ -4,7 +4,7 @@ import sys
 import unittest
 import json
 import tempfile
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 from fastapi.testclient import TestClient
@@ -24,6 +24,7 @@ from app.services.patch_service import apply_unified_diff, validate_unified_diff
 from app.services.review_token_service import build_review_token
 from app.services.email_service import _build_frontend_review_url
 from app.schemas.ticket import TicketAutomationResult, TicketResolution, TicketReviewOutcome
+from app.schemas.assistant import AssistantResponse, AssistantSource
 
 
 class UploadApiTestCase(unittest.TestCase):
@@ -190,6 +191,59 @@ class UploadApiTestCase(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.content.startswith(b"PK"))
+
+    @patch("app.api.routes.reports.generate_report_from_uploads", new_callable=AsyncMock)
+    def test_report_generation_route_passes_prompt(self, mock_generate_report) -> None:
+        excel_bytes = self._build_excel_file()
+        ppt_bytes = self._build_ppt_template()
+        with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as temp_file:
+            temp_file.write(ppt_bytes.getvalue())
+            generated_path = Path(temp_file.name)
+
+        mock_generate_report.return_value = generated_path
+        response = self.client.post(
+            "/reports/generate",
+            files={
+                "excel_file": (
+                    "sample.xlsx",
+                    excel_bytes.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+                "reference_file": (
+                    "template.pptx",
+                    ppt_bytes.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ),
+            },
+            data={"prompt": "Focus on efficiency by channel and keep the story concise."},
+        )
+
+        generated_path.unlink(missing_ok=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            mock_generate_report.await_args.kwargs["prompt"],
+            "Focus on efficiency by channel and keep the story concise.",
+        )
+
+    @patch(
+        "backend.app.api.assistant.answer_with_web_search",
+        return_value=AssistantResponse(
+            answer="Retail media budgets are still growing, with measurement and incrementality under pressure.",
+            sources=[
+                AssistantSource(title="Example Source", url="https://example.com/source"),
+            ],
+        ),
+    )
+    def test_assistant_route_returns_web_answer(self, _mock_answer) -> None:
+        response = self.client.post(
+            "/api/assistant/respond",
+            json={"prompt": "What are the latest retail media trends?"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("Retail media budgets", payload["answer"])
+        self.assertEqual(payload["sources"][0]["url"], "https://example.com/source")
 
     def test_ticket_endpoint_stores_ticket_locally(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -572,9 +626,9 @@ class UploadApiTestCase(unittest.TestCase):
         )
 
         self.assertIsNotNone(resolution)
-        self.assertEqual(resolution.files, ["frontend/app/upload/page.tsx"])
+        self.assertEqual(resolution.files, ["frontend/components/agent-workspace.tsx"])
         self.assertIn(".pdf", resolution.patch)
-        self.assertIn("reference_file", resolution.patch)
+        self.assertIn("REFERENCE_EXTENSIONS", resolution.patch)
         self.assertIn('accept="', resolution.patch)
 
     def test_literal_text_resolution_supports_unquoted_text(self) -> None:
@@ -583,7 +637,7 @@ class UploadApiTestCase(unittest.TestCase):
         )
 
         self.assertIsNotNone(resolution)
-        self.assertEqual(resolution.files, ["frontend/app/upload/page.tsx"])
+        self.assertEqual(resolution.files, ["frontend/components/agent-workspace.tsx"])
         self.assertIn(".pdf", resolution.patch)
 
     def test_literal_text_resolution_supports_addition_with_single_quotes(self) -> None:
@@ -632,13 +686,13 @@ class UploadApiTestCase(unittest.TestCase):
 
     def test_literal_text_resolution_removes_named_upload_block(self) -> None:
         resolution = _try_generate_literal_text_resolution(
-            'In the upload page please remove the "Recommended reference order" block.'
+            'In the upload page please remove the "Web research" block.'
         )
 
         self.assertIsNotNone(resolution)
-        self.assertEqual(resolution.files, ["frontend/app/upload/page.tsx"])
-        self.assertIn('-          <div className="console-card">', resolution.patch)
-        self.assertIn('-            <div className="console-label">Recommended reference order</div>', resolution.patch)
+        self.assertEqual(resolution.files, ["frontend/components/agent-workspace.tsx"])
+        self.assertIn('-        <div className="agent-capabilities">', resolution.patch)
+        self.assertIn('-          <span>Web research</span>', resolution.patch)
 
     @staticmethod
     def _build_excel_file() -> BytesIO:

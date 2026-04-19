@@ -4,8 +4,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "DeckCreator Studio",
-  description: "Generate presentation-ready decks from business data and brand references.",
+  title: "DeckCreator Agent",
+  description: "Prompt-first deck creation with live research, file attachments, and editable PPTX generation.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -18,14 +18,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <div className="shell">
           <header className="topbar">
             <Link href="/" className="brand">
-              <span className="brand-mark">DC</span>
+              <span className="brand-mark">AI</span>
               <span className="brand-copy">
                 <strong>DeckCreator</strong>
-                <span>Studio</span>
+                <span>Agent</span>
               </span>
             </Link>
             <nav className="nav">
-              <Link href="/upload">Create</Link>
+              <Link href="/">Agent</Link>
               <Link href="/tickets">Support</Link>
             </nav>
           </header>

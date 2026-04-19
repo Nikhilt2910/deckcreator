@@ -1,6 +1,15 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 export type TicketType = "bug" | "feature";
+export type AssistantSource = {
+  title: string;
+  url: string;
+};
+
+export type AssistantResponse = {
+  answer: string;
+  sources: AssistantSource[];
+};
 
 export type TicketResponse = {
   id: string;
@@ -62,10 +71,17 @@ export async function uploadFiles(excelFile: File, referenceFile: File): Promise
   return parseResponse(response);
 }
 
-export async function generateReport(excelFile: File, referenceFile: File): Promise<GeneratedDeckResult> {
+export async function generateReport(
+  excelFile: File,
+  referenceFile: File,
+  prompt?: string,
+): Promise<GeneratedDeckResult> {
   const formData = new FormData();
   formData.append("excel_file", excelFile);
   formData.append("reference_file", referenceFile);
+  if (prompt?.trim()) {
+    formData.append("prompt", prompt.trim());
+  }
 
   const response = await fetch(`${API_BASE_URL}/reports/generate`, {
     method: "POST",
@@ -83,6 +99,18 @@ export async function generateReport(excelFile: File, referenceFile: File): Prom
   const blob = await response.blob();
 
   return { blob, filename };
+}
+
+export async function askAssistant(prompt: string): Promise<AssistantResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/assistant/respond`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prompt }),
+  });
+
+  return parseResponse<AssistantResponse>(response);
 }
 
 export async function createTicket(type: TicketType, description: string): Promise<TicketResponse> {

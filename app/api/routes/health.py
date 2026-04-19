@@ -16,6 +16,7 @@ async def root() -> dict[str, object]:
             "ticket": "/api/ticket",
             "approve": "/api/approve",
             "reject": "/api/reject",
+            "assistant": "/api/assistant/respond",
         },
     }
 

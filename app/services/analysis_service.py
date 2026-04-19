@@ -18,7 +18,10 @@ class AnalysisResult(BaseModel):
     executive_summary: str
 
 
-def analyze_data(data_json: dict[str, Any] | list[Any] | str) -> dict[str, Any]:
+def analyze_data(
+    data_json: dict[str, Any] | list[Any] | str,
+    deck_prompt: str | None = None,
+) -> dict[str, Any]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY is not set.")
@@ -26,6 +29,13 @@ def analyze_data(data_json: dict[str, Any] | list[Any] | str) -> dict[str, Any]:
     client = OpenAI(api_key=api_key)
     model = os.getenv("OPENAI_ANALYSIS_MODEL", "gpt-5.4")
     payload = _normalize_data_json(data_json)
+
+    additional_instructions = ""
+    if deck_prompt and deck_prompt.strip():
+        additional_instructions = (
+            "\n\nAdditional user direction for this deck:\n"
+            f"{deck_prompt.strip()}"
+        )
 
     response = client.responses.parse(
         model=model,
@@ -38,6 +48,7 @@ def analyze_data(data_json: dict[str, Any] | list[Any] | str) -> dict[str, Any]:
                     "Return concise, board-ready insights grounded in the data. Focus on channel, region, "
                     "revenue, investment, and ROI patterns. Avoid generic recommendations and repeated ideas.\n\n"
                     f"Business data:\n{payload}"
+                    f"{additional_instructions}"
                 ),
             },
         ],

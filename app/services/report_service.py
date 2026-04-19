@@ -20,6 +20,7 @@ async def generate_report_from_uploads(
     excel_file: UploadFile,
     reference_file: UploadFile | None,
     built_in_template: str | None = None,
+    prompt: str | None = None,
 ) -> Path:
     _validate_extension(excel_file.filename, EXCEL_EXTENSIONS, "Excel")
 
@@ -40,7 +41,8 @@ async def generate_report_from_uploads(
                 "workbook": workbook_payload,
                 "presentation_dataset": presentation_dataset,
                 "reference_context": reference_context,
-            }
+            },
+            deck_prompt=prompt,
         )
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

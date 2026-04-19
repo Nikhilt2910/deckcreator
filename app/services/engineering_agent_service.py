@@ -315,7 +315,8 @@ def _select_literal_candidate(
 def _preferred_frontend_route(normalized_description: str) -> str | None:
     route_keywords = {
         "frontend/app/tickets/": ("ticket", "tickets", "support", "feedback"),
-        "frontend/app/upload/": ("upload", "reference file", "inputs", "deck"),
+        "frontend/app/upload/": ("upload",),
+        "frontend/components/agent-workspace.tsx": ("reference file", "inputs", "deck", "upload", "prompt"),
         "frontend/app/status/": ("status", "tracking", "track"),
         "frontend/app/review/": ("review", "approve", "reject"),
     }
@@ -503,7 +504,7 @@ def _try_generate_direct_container_resolution(ticket_description: str) -> Ticket
     if "upload" in normalized or "backend" in normalized:
         route_file_candidates.append(
             (
-                BASE_DIR / "frontend" / "app" / "upload" / "page.tsx",
+                BASE_DIR / "frontend" / "components" / "agent-workspace.tsx",
                 "Upload page",
                 (
                     ("connected backend", '<div className="console-card accent">'),
@@ -513,6 +514,10 @@ def _try_generate_direct_container_resolution(ticket_description: str) -> Ticket
                     ("console-card accent", '<div className="console-card accent">'),
                     ("recommended reference order", '<div className="console-card">'),
                     ("reference order", '<div className="console-card">'),
+                    ("agent capabilities", '<div className="agent-capabilities">'),
+                    ("web research", '<div className="agent-capabilities">'),
+                    ("excel ingestion", '<div className="agent-capabilities">'),
+                    ("pptx generation", '<div className="agent-capabilities">'),
                 ),
                 "upload",
             )

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import health, presentations, reports, tickets, uploads
-from backend.app.api import approval, ticket, upload
+from backend.app.api import approval, assistant, ticket, upload
 from backend.app.core.config import FRONTEND_ORIGIN_REGEX, FRONTEND_ORIGINS
 
 
@@ -42,3 +42,4 @@ app.include_router(tickets.router)
 app.include_router(upload.router)
 app.include_router(ticket.router)
 app.include_router(approval.router)
+app.include_router(assistant.router)
