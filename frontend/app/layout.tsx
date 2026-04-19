@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { PixelField } from "@/components/pixel-field";
+
 export const metadata: Metadata = {
   title: "DeckCreator Agent",
   description: "Prompt-first deck creation with live research, file attachments, and editable PPTX generation.",
@@ -12,6 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <PixelField />
         <div className="ambient ambient-a" />
         <div className="ambient ambient-b" />
         <div className="grid-overlay" />

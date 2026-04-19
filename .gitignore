@@ -9,6 +9,8 @@ frontend/.next/
 frontend/out/
 frontend/.env.local
 generated/
+*-live*.log
+*-start*.log
 data/tickets.json
 data/output/*.pptx
 data/uploads/excel/*.xlsx
